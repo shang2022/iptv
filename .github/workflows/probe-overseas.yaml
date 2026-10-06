@@ -1,0 +1,34 @@
+name: probe-overseas
+# 临时分支专用：在 GitHub Actions（美国机房）跑一遍模块全链路 / 节目单 / 精选列表探测，结果作 artifact 下载
+on:
+  push:
+    branches: [probe/overseas]
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      PUPPETEER_SKIP_DOWNLOAD: 'true'
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci
+      - name: 模块全链路
+        run: |
+          mkdir -p out
+          node scripts/probe-modules.mjs --json out/modules.json --md out/modules.md 2>&1 | tee out/modules.log
+      - name: 节目单
+        if: always()
+        run: node scripts/probe-epg.mjs --json out/epg.json --md out/epg.md 2>&1 | tail -30
+      - name: 精选列表
+        if: always()
+        run: |
+          node scripts/probe-m3u.mjs > out/m3u.log 2>&1 || true
+          cp probe-report.md out/m3u.md
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: probe-overseas
+          path: out/
