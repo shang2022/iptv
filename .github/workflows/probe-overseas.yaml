@@ -6,7 +6,7 @@ on:
 jobs:
   probe:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
     env:
       PUPPETEER_SKIP_DOWNLOAD: 'true'
     steps:
@@ -18,7 +18,7 @@ jobs:
       - name: 模块全链路
         run: |
           mkdir -p out
-          node scripts/probe-modules.mjs --json out/modules.json --md out/modules.md 2>&1 | tee out/modules.log
+          node scripts/probe-modules.mjs --samples all --json out/modules.json --md out/modules.md 2>&1 | tee out/modules.log
       - name: 节目单
         if: always()
         run: node scripts/probe-epg.mjs --json out/epg.json --md out/epg.md 2>&1 | tail -30
