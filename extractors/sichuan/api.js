@@ -425,18 +425,19 @@ async function requestTvManifest(signed, options = {}) {
 
 /**
  * 刷新时拿第一个电视频道换一次签，确认官网还认这个 Token，免得后台显示正常、一播才报错。
- * 签名照常进缓存，播放时直接复用。返回要挂在后台的警告，没问题时返回空串。
+ * 签名照常进缓存，播放时直接复用。官网不认时返回 { rejected }，检查没做完返回 { warning }，
+ * 没问题时返回空对象。
  */
 export async function checkToken(rows, accessToken, options = {}) {
   const row = Array.isArray(rows) ? rows[0] : null
-  if (!row) return ''
+  if (!row) return {}
   try {
     await cachedSigned(row, accessToken, options)
-    return ''
+    return {}
   } catch (error) {
-    if (error instanceof TokenRejectedError) return error.message
+    if (error instanceof TokenRejectedError) return { rejected: error.message }
     const reason = error?.name === 'AbortError' ? '请求超时' : (error?.message || String(error))
-    return `四川 Token 检查没有完成：${reason}`
+    return { warning: `四川 Token 检查没有完成：${reason}` }
   }
 }
 

@@ -37,8 +37,9 @@
 | `yangshipin` | 央视频 | 已接入 | 73/73 | 2 | capi.yangshipin.cn/api/yspepg/program/{livePid}/{日期} | 对象存储上的静态 protobuf；国学频道官方无文件（与河南国学频道同一个台，由河南补） |
 | `fengshows` | 凤凰卫视 | 已接入 | 3/3 | 2 | api.fengshows.cn/live/{id}/resources | 开始时间是 UTC 时间戳 |
 | `hkstv` | 香港卫视 | 已接入 | 1/1 | 2 | hkstv.tv/services/live/epg | 接口不带频道参数，给的是官网当前默认的那一路 |
+| `tdm` | 澳门 | 已接入 | 6/6 | 2 | www.tdm.com.mo/api/v1.0/program-list/{日期}?channelId={号}&type=0 | 官网直播页自用的 JSON；一份是一个播出日（07:00 → 次日凌晨），上海一天取前一天与当天两份拼；只给开始时间，结束取下一档；标题繁体照原样；接口只对大陆以外开放 |
 | `lotustv` | 澳门莲花卫视 | 已接入 | 1/1 | 2 | www.lotustv.mo/zh/programme | 服务端渲染的 HTML，一页本周一到周日，标签只写日号、没有日期参数；只给开始时间，结束取下一档；周日取不到下周一；节目名繁体照原样 |
-| `asian-live` | 亚洲与国际直播 | 已接入 | YTN、NHK World | 2 | NHK：masterpl.hls.nhkworld.jp/epg/w/{日期}.json；YTN：m.ytn.co.kr/schedule.php | UTC+9，上海的一天对应当地 01:00–次日 01:00；YTN 是网页抓取 |
+| `asian-live` | 亚洲与国际直播 | 已接入 | YTN、NHK World | 2 | NHK：masterpl.hls.nhkworld.jp/epg/w/{日期}.json；YTN：m.ytn.co.kr/schedule.php | UTC+9，上海的一天对应当地 01:00–次日 01:00；YTN 是网页抓取；10-06 挪进来的 CNA、France 24 English / Français、World Poker Tour 只为把最高档挪到最前，节目单还没调研 |
 | `bilibili-live` | 哔哩哔哩直播 | 不适用 | — | — | — | 直播间 |
 | `douyin-live` | 抖音直播 | 不适用 | — | — | — | 直播间 |
 | `huya-live` | 虎牙直播 | 不适用 | — | — | — | 直播间 |
@@ -51,6 +52,7 @@
 | `dalian` | 大连 | 已接入 | 3/3 | 2 | wan-dlrm.dlrm.cn/app/tv/programs | 与取流共用匿名 SM2 令牌 |
 | `gansu` | 甘肃 | 已接入 | 1/6 | 2 | api.cntv.cn/epg/getEpgInfoByChannelNew?c=gansu | 甘肃台自己的 getTvProgramList 全空、也不是带时间的节目表；甘肃卫视取央视网（央视频也有），五个地面频道央视网、央视频都没收 |
 | `gdtv` | 广东 | 已接入 | 14/17 | 2 | gdtv-api.gdtv.cn/api/tv/v2/tvMenu | HMAC-SHA256 签名，key/secret 取自官网 WASM 签名模块（别直接跑官网签名脚本，里面有反 Node 陷阱）；经典剧、纪录片、健康官方为空 |
+| `gdsport-events` | 广东体育赛事 | 不适用 | — | — | gdsport-m.itouchtv.cn；api.itouchtv.cn/liveservice | 动态赛事直播间，名称含赛事标题；详情只有场次信息，不套用广东体育电视频道的节目单 |
 | `gztv` | 广州 | 无官方节目单 | — | — | — | 广视网直播页没有节目单，频道数据里的节目字段为空；旧节目单域名已失效 |
 | `gzstv` | 贵州 | 无官方节目单 | — | — | — | 官网接口只给标题与流地址；动静 App（2026-09-25 拆包，官网直链 120 MB）是梆梆 DexHelper + zxprotect 加固，单个 137 MB 的假 dex，不脱壳、到此为止 |
 | `gxtv` | 广西 | 已接入 | 6/7 | 2 | api2019.gxtv.cn/memberApi/programList/selectListByChannelId | POST，实际按频道名查；只给开始时间与时长；广西移动官方不展示节目单 |
@@ -67,6 +69,8 @@
 | `hnntv` | 海南 | 已接入 | 7/7 | 1 | www.hnntv.cn/api/schedule/byDay | 一次给今天加过去 6 天，没有明天 |
 | `hntv` | 河南 | 已接入 | 13/13 | 1 | pubmod.hntv.tv/program/getAuth/vod/originStream/program/{cid}/{零点秒} | sha256 签名；明天以后是冻结的周模板，按没发处理 |
 | `cztv` | 浙江 | 已接入 | 9/9 | 2 | p.cztv.com/api/paas/program/{台号}/{日期} | 播出日志粒度，剔除广告、宣传片碎片；未来日期是「精彩节目」占位 |
+| `hangzhou` | 杭州 | 无官方节目单 | — | — | — | 葫芦网看电视页内嵌的节目表全天是 24 条整点「精彩节目」占位（页面切日期用的 /m2o/program_switch.php 回空），频道接口的 cur_program 同样是「精彩节目」、use_self_program 为 0；mapi.hoolo.tv 上试过 program.php、program_list.php、channel_program.php 都被 openresty 403；央视网试过 hangzhou / hangzhou1 / hztv / hztv1 / xihumingzhu 都是 params error，央视频、咪咕也没收 |
+| `ningbo` | 宁波 | 无官方节目单 | — | — | — | 宁波广电网的「电视节目单」是每周一篇文章，节目表是一套、二套两张图片（没有三套、四套），没有可读的数据；频道资料 JSONP 只有地址；央视网 nbtv1–nbtv5 有数据，但每天一模一样（9 月 1 日与 10 月 6 日逐条相同），还是「看看看」「汇市直通车」这些旧栏目，和官方本周节目表对不上（官方 7:05 宁波新闻重播、18:30 看点），是冻结模板，不用 |
 | `jiaxing` | 嘉兴 | 无官方节目单 | — | — | — | 趣看播放器的节目表接口 qukanvideo.com/h5/channel/view/item/list?liveId=&day= 只有已播出的日子有数据（且多为「无版权」时段块），今天、明天都是空数组，和辽宁北斗一样只是回看列表；央视网试过 jiaxing / jiaxing1 / jxtv 都是 params error，央视频、咪咕也没收 |
 | `jstv` | 江苏 | 已接入 | 10/10 | 1 | live-lizhi.jstv.com/api/Channel/Epg | 匿名 JWT；频道要用导航里的 extraId |
 | `wuxi` | 无锡 | 已接入 | 5/5 | 2 | bb-mapi.wifiwx.com/api/open/wxbb/ds_program.php | 无锡博报分享页节目表弹窗同款，appid/appkey 写在网页公开脚本里；start_time 是 unix 秒、toff 是时长，首尾相接；每天末尾有 toff 为 0 的收尾标记、同一时刻偶有重复，丢掉；明天排到傍晚；太湖明珠网官网节目单挂在 360 磐云 JS 验证后面、页面只有「精彩节目」占位，不用 |
@@ -79,7 +83,7 @@
 | `shanxi` | 山西 | 已接入 | 9/16 | 2 | apphhplushttps.sxrtv.com/epg/{key}.json | JSONP；7 个地市台官方文件为空；末档拉到次日早上的按下一档截断 |
 | `shaanxi` | 陕西 | 已接入 | 8/8 | 1 | qidian.sxtvs.com/api/v3/program/tv?channel={key} | 只给服务器当天、只有 HH:mm，按响应 Date 头认日期；同一时刻两条留后一条；末档 23:59 接到 24:00 |
 | `tianjin` | 天津 | 已接入 | 7/7 | 2 | jyapi2.wisetv.com.cn:8684/v3/tv/programs/show/{起}/{止}/{频道ID} | 与取流共用津云 App 内置的 ak/sk 头；区间最远到后天；明天上午起是编排计划，三小时切段与零点切段合回一条、去掉「30’」类时长批注 |
-| `qinghai` | 青海 | 无官方节目单 | — | — | — | 官网云直播 program/list 对任何日期（未来、频道建立之前）都即时生成 24 条整点「精彩节目」占位，每次请求 id 都是新的；与福建东南卫视同一平台同一情况 |
+| `qinghai` | 青海 | 已接入 | 1/4 | 2 | api.cntv.cn/epg/getEpgInfoByChannelNew?c=qinghai | 云直播 program/list 对四路、任何日期（未来、频道建立之前）都即时生成 24 条整点「精彩节目」占位，每次请求 id 都是新的，与福建东南卫视同一平台同一情况；青海卫视取央视网（央视频也有），经济生活、都市、安多卫视央视网与央视频都没收 |
 | `ningxia` | 宁夏 | 已接入 | 3/3 | 1 | api.ningxiahuangheyun.com/?mod=get_appdata&appid=nxtv-tv | 黄河云 App 页面配置，一次给三套（menu[].ename = nxws / nxgg / nxwl），秒级起止时间；只有今天，日期参数都不认；约 500KB，模块内缓存 10 分钟三套共用；宁夏卫视咪咕已有节目单，实际由咪咕给，黄河云补公共、文旅；每档带的官方回看地址没用 |
 | `xinjiang` | 新疆 | 已接入 | 6/7 | 2 | slstapi.xjtvs.com.cn/api/TVLiveV100/TVGuideList | 新疆少儿官方为空 |
 | `xizang` | 西藏 | 无官方节目单 | — | — | — | 珠峰云接口只给每台「正在播出」一条（卡片 date/enddate）；频道详情 videolive 的 ifschedule=0、节目列表全空，官网没有电视直播页。开着央视频时西藏卫视与它同名，共用央视频的节目单 |
@@ -90,6 +94,7 @@
 | `livechina` | 央视直播中国 | 不适用 | — | — | — | 景观直播 |
 | `ipanda` | iPanda 官方直播 | 不适用 | — | — | — | 熊猫机位 |
 | `mgtv` | 湖南 | 无官方节目单 | — | — | — | 芒果各接口只给 2010→2050 的占位；getLivePlayBill 要机顶盒参数且没有数据 |
+| `overseas` | 海外频道 | 未调研 | — | — | — | 33 台来自 Samsung TV Plus、Plex、Rakuten TV、LG Channels、Xumo 等免费流媒体平台和 France 24、Arirang 官网，节目表在各平台自己的接口里，还没查 |
 <!-- epg-status:end -->
 
 ## 不做对外发布

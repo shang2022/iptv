@@ -3,6 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!-- 网页直接播放海外直链时不带本页地址做来源头：NASA+ 等 CDN 放行不带来源的请求、拒绝别家来源
+         （外部播放器本来就不带）。服务端不读 Referer，本页自己的接口不受影响。 -->
+    <meta name="referrer" content="no-referrer">
     <title>IPTV 频道管理</title>
     <style>
         * {
@@ -504,8 +507,7 @@
             align-items: stretch;
         }
 
-        /* 抓取模块按使用门槛分区。分类标题与卡片网格分层，模块再多也能先扫标题、
-           再在小范围内找卡片；不用改变注册表顺序和实际的合并优先级。 */
+        /* 抓取模块按使用门槛分类，顶部按钮一次切一类；不改变注册表顺序和实际的合并优先级。 */
         .source-category-list {
             display: flex;
             flex-direction: column;
@@ -518,20 +520,6 @@
             gap: 8px;
             flex-wrap: wrap;
             margin-bottom: 9px;
-        }
-
-        .source-category-title {
-            font-size: 14px;
-            font-weight: 600;
-            color: #333;
-        }
-
-        .source-category-count {
-            padding: 1px 7px;
-            border-radius: 10px;
-            background: #f0f0f0;
-            color: #666;
-            font-size: 11px;
         }
 
         .source-category-desc {
@@ -906,6 +894,12 @@
             border-color: #b7eb8f;
         }
 
+        .source-badge.overseas {
+            background: #fff0f6;
+            color: #c41d7f;
+            border-color: #ffadd2;
+        }
+
         /* 自定义源的展开详情区。280px 那一栏是使用说明。 */
         .external-detail-wrap {
             display: grid;
@@ -1253,6 +1247,19 @@
             opacity: 0.85;
         }
 
+        /* 登录凭证失效提醒：挂在「源管理」「内置抓取模块」标签文字后面 */
+        .attention-dot {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            margin-left: 6px;
+            border-radius: 50%;
+            background: #ff4d4f;
+            vertical-align: middle;
+        }
+        .attention-dot[hidden] { display: none; }
+        .attention-dot.is-warning { background: #fa8c16; }
+
         .external-item-body {
             padding: 16px;
             flex: 1;
@@ -1449,55 +1456,6 @@
             font-size: 12px;
             color: #888;
             margin-top: 4px;
-        }
-
-        /* 「东西搬走了」的全局指路条。临时性质，见 markup 处的注释。 */
-        .moved-notice {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            flex-wrap: wrap;
-            margin-top: 10px;
-            padding: 9px 14px;
-            background: #f0f9ff;
-            border: 1px solid #91d5ff;
-            border-left: 4px solid #1890ff;
-            border-radius: 6px;
-            color: #003a8c;
-            font-size: 13px;
-            line-height: 1.7;
-        }
-
-        .moved-notice-text {
-            flex: 1 1 320px;
-            min-width: 0;
-        }
-
-        .moved-notice a {
-            color: #1890ff;
-            font-weight: 600;
-            text-decoration: none;
-        }
-
-        .moved-notice a:hover {
-            text-decoration: underline;
-        }
-
-        .moved-notice-close {
-            flex-shrink: 0;
-            padding: 4px 12px;
-            font-size: 12px;
-            color: #1890ff;
-            background: #fff;
-            border: 1px solid #91d5ff;
-            border-radius: 4px;
-            cursor: pointer;
-            white-space: nowrap;
-        }
-
-        .moved-notice-close:hover {
-            background: #1890ff;
-            color: #fff;
         }
 
         /* 自定义分组与同名订阅分组合并显示时的提示（建组时源里没有该分组，之后源恢复就会撞在一起） */
@@ -2246,7 +2204,6 @@
         .ch-status-legend b { color: #666; font-weight: 500; }
         .ch-status-legend .seg { display: inline-flex; align-items: center; gap: 5px; }
         .ch-status-legend .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
-        .ch-status-legend .ch-status-legend-tip { margin-left: auto; }
 
         /* 顶部内联订阅地址栏（issue #38：免点编辑即可复制） */
         .subscribe-bar {
@@ -2376,21 +2333,24 @@
         .brand {
             display: flex;
             align-items: center;
-            gap: 11px;
             flex: 0 0 auto;
-            padding: 0 6px;
+            margin-left: 6px;
+            padding: 0 8px;
+            text-decoration: none;
         }
-        .brand-logo { display: block; width: 86px; height: 30px; color: var(--ui-accent); }
+        .brand:focus-visible { outline: 2px solid var(--ui-accent); outline-offset: 4px; border-radius: 6px; }
+        .brand-mark { display: block; flex: 0 0 auto; width: 44px; height: 44px; border-radius: 4px; object-fit: contain; transition: opacity .16s ease; }
+        .brand:hover .brand-mark { opacity: .86; }
         .tabs-left {
             display: grid;
             grid-template-columns: repeat(4, minmax(0, 1fr));
             flex: 0 1 50%;
             width: 50%;
             max-width: 860px;
-            padding: 5px;
-            gap: 4px;
+            padding: 2px;
+            gap: 2px;
             border: 1px solid var(--ui-line);
-            border-radius: 14px;
+            border-radius: 10px;
             background: var(--ui-surface-strong);
         }
         .tab {
@@ -2398,7 +2358,7 @@
             min-height: 40px;
             padding: 9px 18px;
             border: 0;
-            border-radius: var(--ui-radius-control);
+            border-radius: 7px;
             color: var(--ui-text-secondary);
             font-size: 14px;
             font-weight: 600;
@@ -2414,7 +2374,7 @@
             color: var(--ui-accent-hover);
             border-bottom-color: transparent;
             background: var(--ui-accent-fill);
-            box-shadow: var(--ui-shadow-control);
+            box-shadow: inset 0 1px 0 rgba(255, 255, 255, .65);
         }
         .tabs-right { padding-right: 0; }
         .restart-btn {
@@ -2438,27 +2398,6 @@
             box-shadow: 0 14px 40px rgba(35, 61, 43, .055), inset 0 1px 0 rgba(255, 255, 255, .9);
         }
         .panel h2 { padding-bottom: 0; border-bottom: 0; color: var(--ui-text); }
-        .page-intro {
-            display: flex;
-            align-items: flex-end;
-            justify-content: space-between;
-            gap: 20px;
-            margin-bottom: 22px;
-            padding: 22px 24px;
-            border-radius: 16px;
-            background: var(--ui-heading-bg);
-            box-shadow: inset 0 1px 0 rgba(255, 255, 255, .85);
-        }
-        .page-kicker {
-            display: block;
-            margin-bottom: 5px;
-            color: var(--ui-heading-muted);
-            font-size: 11px;
-            font-weight: 750;
-            letter-spacing: .15em;
-        }
-        .page-intro h2 { margin: 0; color: var(--ui-heading-text); font-size: 30px; line-height: 1.2; letter-spacing: -.02em; }
-        .page-intro p { margin: 9px 0 0; color: var(--ui-heading-muted); font-size: 14px; }
 
         /* 按钮：主操作实心，其余白底描边，不用立体渐变 */
         .btn,
@@ -2618,26 +2557,26 @@
             padding: 0;
             gap: 0;
             overflow: hidden;
-            /* 与源管理、设置的 page-intro 对齐，描边不再把色块向内推 1px。 */
+            /* 描边不再把色块向内推 1px。 */
             border: 0;
             border-radius: 16px;
             background: var(--ui-surface);
             box-shadow: none;
         }
         .my-playlist-header-row { padding: 12px 16px; background: var(--ui-heading-bg); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .85); }
-        .my-playlist-info h3 { color: var(--ui-heading-text); font-size: 22px; letter-spacing: -.01em; }
+        /* 「我的频道」页头标题 16px 加粗（作者 10-06）：标题只是标明在哪一页，不抢内容；源管理、设置、关于不再有页头条（标题与顶部导航重复） */
+        .my-playlist-info h3 { color: var(--ui-heading-text); font-size: 16px; font-weight: 700; }
         .my-playlist-info #myChannelTotal { color: var(--ui-heading-muted) !important; }
         .my-playlist-actions { gap: 12px; }
         .my-playlist-actions > span { color: var(--ui-heading-muted) !important; }
         .my-playlist-header .btn-primary { color: var(--ui-accent-hover); border-color: var(--ui-accent-fill-line); background: var(--ui-accent-fill); }
         .my-playlist-header .btn-primary:hover { border-color: var(--ui-accent-fill-line); background: var(--ui-accent-fill-hover); }
-        /* 订阅地址是标题卡的第二行，用分隔线代替单独的青色框 */
+        /* 订阅地址是标题卡的第二行；标题行自带底色，两行之间不再加分隔线（作者 10-06） */
         .subscribe-bar {
             margin: 0;
-            padding: 12px 16px;
+            padding: 12px 16px 6px;
             gap: 8px 22px;
             border: 0;
-            border-top: 1px solid var(--ui-line);
             border-radius: 0;
             background: transparent;
         }
@@ -2669,7 +2608,7 @@
             height: calc(100vh - var(--mp-offset, 180px));
             min-height: 500px;
             margin-top: 0;
-            gap: 12px 20px;
+            gap: 6px 20px;
         }
         .my-playlist-left { width: 242px; }
         .my-playlist-right { width: 226px; }
@@ -2688,6 +2627,9 @@
             font-size: 14px;
             font-weight: 700;
         }
+        /* 「频道分组」标题条和右边「我的频道」标题行并排：字号同为 16px 加粗，底边对齐
+           （分组栏外框有 1px 边，所以条高 63px = 标题行 64px 减去上边框） */
+        .my-playlist-left .my-playlist-section-title { min-height: 63px; padding: 12px 16px; border-bottom: 0; font-size: 16px; }
         .my-playlist-right .my-playlist-section-title {
             color: var(--ui-pink);
             border-bottom-color: var(--ui-pink-line);
@@ -2761,41 +2703,90 @@
             background: transparent;
         }
         .my-playlist-detail-header {
-            min-height: 58px;
-            margin-bottom: 13px;
-            padding: 15px 19px;
+            min-height: 0;
+            flex-shrink: 0;
+            margin-bottom: 10px;
+            padding: 10px 14px;
             border: 1px solid var(--ui-line);
             border-radius: 14px;
             background: var(--ui-surface);
             box-shadow: none;
         }
-        .my-playlist-detail-title { color: var(--ui-text); font-size: 18px; }
-        /* 按钮一行放不下时（窗口窄、批量模式）整齐换行：行间留缝、靠右对齐。
-           先让按钮换行，分组名不跟着被挤成两行；分组名太长（超过四成宽）才自己折行。
-           1180 以下中间栏本来就窄，分组名和按钮一起让（见下方 @media） */
-        .my-playlist-detail-header { gap: 12px; }
-        .my-playlist-detail-title { flex: 0 0 auto; max-width: 40%; }
+        /* 分组名和配对说明合在左侧，操作区保留两行；窄窗口再上下排列。 */
+        .my-playlist-detail-header { gap: 14px; }
+        .my-playlist-detail-info { display: flex; flex-direction: column; gap: 5px; flex: 1 1 0; min-width: 0; }
+        .announcement-header { align-content: flex-start; }
+        .announcement-header .my-playlist-detail-info { min-height: var(--group-detail-info-height, 0px); }
+        .my-playlist-detail-title { color: var(--ui-text); font-size: 16px; line-height: 1.4; overflow-wrap: anywhere; }
         .my-playlist-detail-actions {
             display: flex;
+            flex: 0 1 auto;
+            max-width: 56%;
             flex-wrap: wrap;
             justify-content: flex-end;
             align-items: center;
-            gap: 6px;
+            gap: 4px;
         }
-        /* 按钮收窄一点：加了置顶 / 置底后，1366 宽的窗口里仍能排成一行 */
-        .my-playlist-detail-actions button { margin-left: 0; padding-inline: 9px; }
+        .my-playlist-detail-actions button {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 3px;
+            min-height: 24px;
+            margin-left: 0;
+            padding: 3px 7px;
+            border-radius: 6px;
+            font-family: inherit;
+            font-size: 10.5px;
+            font-weight: 500;
+            line-height: 1.3;
+            white-space: nowrap;
+        }
+        .my-playlist-detail-actions .btn-primary { font-weight: 600; }
+        .my-playlist-detail-actions select { min-height: 24px; font-family: inherit; font-size: 10.5px; }
+        /* 分组详情的按钮固定排两行：上行管分组本身，下行管组内频道，左侧小字对齐（issue #165 有人把上移下移看成调频道） */
+        .group-action-grid {
+            display: grid;
+            grid-template-columns: auto minmax(0, 1fr);
+            align-items: start;
+            gap: 5px 8px;
+        }
+        .group-action-label {
+            display: flex;
+            align-items: center;
+            min-height: 24px;
+            color: var(--ui-muted);
+            font-size: 10px;
+            font-weight: 400;
+            line-height: 1.3;
+            white-space: nowrap;
+        }
+        .group-action-btns { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; white-space: nowrap; }
+        .group-action-icon {
+            flex: 0 0 auto;
+            width: 11px;
+            height: 11px;
+            fill: none;
+            stroke: currentColor;
+            stroke-width: 1.5;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+        }
         .ch-status-legend {
-            min-height: 38px;
-            margin-bottom: 13px;
-            padding: 8px 12px;
-            gap: 15px;
+            min-height: 0;
+            margin: 0;
+            padding: 0;
+            gap: 3px 10px;
             border: 0;
-            border-bottom: 1px solid var(--ui-line);
             border-radius: 0;
             background: transparent;
             color: var(--ui-muted);
+            font-size: 11px;
+            line-height: 1.5;
         }
         .ch-status-legend b { color: var(--ui-text-secondary); }
+        .ch-status-legend .seg { max-width: 100%; gap: 4px; }
+        .ch-status-legend .dot { width: 6px; height: 6px; flex-shrink: 0; }
         .dot.ok { background: #27a777; }
         .dot.no { background: #dc6571; }
         .my-playlist-groups { gap: 18px; padding: 0 4px 4px; }
@@ -2877,17 +2868,8 @@
         /* 内容源卡片：卡片本身保持中性，颜色只用于类型和状态 */
         .source-section-head { margin-bottom: 18px; }
         .source-section-hint { max-width: 920px; color: var(--ui-text-secondary); font-size: 13px; line-height: 1.75; }
-        .source-category-list { gap: 36px; }
+        .source-category-list { gap: 0; }
         .source-category-head { gap: 9px; margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px solid var(--ui-line-strong); }
-        .source-category-title { color: var(--ui-text); font-size: 20px; font-weight: 750; }
-        .source-category-count {
-            padding: 2px 8px;
-            border-radius: 999px;
-            background: var(--ui-surface-strong);
-            color: var(--ui-text-secondary);
-            font-size: 11px;
-            font-weight: 650;
-        }
         .source-category-desc { color: var(--ui-muted); font-size: 13px; }
 
         /* 抓取模块按开关筛选（issue #164）。比二级标签轻一档：描边小胶囊，
@@ -2922,6 +2904,30 @@
             text-align: center;
         }
         .extractor-filter-btn.active .extractor-filter-count { background: var(--ui-accent); color: #fff; }
+        /* 抓取模块分类按钮（作者 10-06）：一次只显示一类。比开关筛选重一档（圆角矩形、加粗、选中实底），
+           比上面「自定义源 / 内置抓取模块 / 内置源」轻一档 */
+        .extractor-category-bar { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 14px; }
+        .extractor-category-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            min-height: 40px;
+            padding: 8px 16px;
+            border: 1px solid var(--ui-line-strong);
+            border-radius: 12px;
+            background: var(--ui-surface);
+            color: var(--ui-text);
+            font-size: 15px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: color .16s ease, background .16s ease, border-color .16s ease;
+        }
+        .extractor-category-btn:hover { color: var(--ui-accent); border-color: var(--ui-accent-line); }
+        .extractor-category-btn.active { color: var(--ui-heading-text); border-color: transparent; background: var(--ui-accent-fill); }
+        .extractor-category-btn.active .extractor-filter-count { background: var(--ui-accent); color: #fff; }
+        .extractor-category-btn .attention-dot { margin-left: 0; }
+        /* 分类说明里要用户特别留意的话：浅黄底、深黄字 */
+        .category-note { padding: 1px 4px; border-radius: 4px; background: var(--ui-warning-soft); color: var(--ui-warning); font-weight: 600; }
         .extractor-filter-empty {
             padding: 16px 18px;
             border: 1px dashed var(--ui-line-strong);
@@ -2973,6 +2979,62 @@
         .source-card.is-off .source-card-desc { opacity: .5; }
         .source-card.is-off .source-badge { filter: grayscale(1); opacity: .45; }
         .module-off-label { color: var(--ui-muted); font-weight: 600; }
+        /* 登录凭证失效：红框浅红底，在一屏几十张卡片里一眼找到；打开着的卡片仍以「选中」为准 */
+        .source-card.needs-attention:not(.active) { border-color: var(--ui-danger); background: var(--ui-danger-soft); }
+        .credential-flag { color: var(--ui-danger); font-weight: 600; }
+        /* 顶部提醒条：有异常（error）为红，只有提醒（warning）为橙 */
+        .alert-bar {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-top: 12px;
+            padding: 11px 14px;
+            border: 1px solid var(--ui-danger-line);
+            border-left: 4px solid var(--ui-danger);
+            border-radius: 12px;
+            background: var(--ui-danger-soft);
+            color: var(--ui-danger);
+            font-size: 13px;
+            line-height: 1.7;
+        }
+        .alert-bar[hidden] { display: none; }
+        .alert-bar.is-warning { border-color: var(--ui-warning-line); border-left-color: var(--ui-warning); background: var(--ui-warning-soft); color: var(--ui-warning); }
+        /* 只占一行：条目多了在行尾省略，完整列表点「查看」 */
+        .alert-bar-text { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .alert-bar-btn {
+            flex-shrink: 0;
+            padding: 4px 12px;
+            border: 1px solid var(--ui-danger);
+            border-radius: 8px;
+            background: var(--ui-danger);
+            color: #fff;
+            font-size: 12px;
+            font-weight: 600;
+            white-space: nowrap;
+            cursor: pointer;
+        }
+        .alert-bar-btn:hover { filter: brightness(1.12); }
+        .alert-bar.is-warning .alert-bar-btn,
+        .alert-item.is-warning .alert-bar-btn { border-color: var(--ui-warning); background: var(--ui-warning); }
+        .alert-center-content { max-height: 80vh; overflow-y: auto; }
+        .alert-center-list { display: flex; flex-direction: column; gap: 10px; }
+        .alert-item {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 6px;
+            padding: 12px 14px;
+            border: 1px solid var(--ui-danger-line);
+            border-left: 4px solid var(--ui-danger);
+            border-radius: 10px;
+            background: var(--ui-danger-soft);
+            font-size: 13px;
+            line-height: 1.7;
+        }
+        .alert-item.is-warning { border-color: var(--ui-warning-line); border-left-color: var(--ui-warning); background: var(--ui-warning-soft); }
+        .alert-item-title { color: var(--ui-danger); }
+        .alert-item.is-warning .alert-item-title { color: var(--ui-warning); }
+        .alert-item-text { color: var(--ui-text-secondary); }
         /* 模块开关：拨动开关代替勾选框——开是实心主题绿、关是灰，扫一眼就分得清；
            「点了立刻生效」也比勾选框（像要按保存的表单项）更贴切。
            单个 input 用 appearance:none + 背景渐变画滑块，不靠伪元素，键盘与读屏照常。 */
@@ -3089,6 +3151,7 @@
             border-color: var(--ui-success-line);
             background: var(--ui-success-soft);
         }
+        .source-badge.overseas,
         .external-mode-badge.subscription,
         .mode-badge.mode-subscription {
             color: var(--ui-pink);
@@ -3239,18 +3302,6 @@
         .bookmarklet-help-btn:hover { border-color: var(--ui-cyan); background: var(--ui-cyan); box-shadow: none; transform: none; }
 
         /* 全局通知与状态 */
-        .moved-notice {
-            margin-top: 12px;
-            padding: 11px 14px;
-            border: 1px solid var(--ui-accent-line);
-            border-left: 1px solid var(--ui-accent-line);
-            border-radius: 12px;
-            background: var(--ui-accent-soft);
-            color: var(--ui-accent);
-        }
-        .moved-notice a { color: var(--ui-accent); }
-        .moved-notice-close { color: var(--ui-accent); border-color: var(--ui-accent-line); border-radius: 8px; }
-        .moved-notice-close:hover { border-color: var(--ui-accent); background: var(--ui-accent); }
         .group-merge-notice { border-radius: 12px; border-left-width: 1px; }
         .status {
             padding: 16px 22px;
@@ -3318,7 +3369,6 @@
         .inline-player-status.bad { color: var(--ui-danger); }
 
         /* 关于页：用与其他页一致的信息卡格式 */
-        .about-hero { display: block; text-align: center; }
         .about-info-card {
             display: grid;
             grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -3381,7 +3431,9 @@
             .my-playlist-left { width: 216px; }
             .my-playlist-right { width: 202px; }
             .my-playlist-channels { grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); }
-            .my-playlist-detail-title { flex: 0 1 auto; max-width: none; }
+            .my-playlist-detail-header { flex-wrap: wrap; gap: 8px; }
+            .my-playlist-detail-info { flex-basis: 100%; }
+            .my-playlist-detail-actions { flex: 1 1 100%; max-width: none; justify-content: flex-start; }
             .external-detail-wrap { grid-template-columns: 1fr 250px; }
         }
         @media (max-width: 900px) {
@@ -3390,7 +3442,7 @@
             .panel { padding: 22px; }
             .tabs { gap: 10px; }
             .tab { padding-inline: 13px; }
-            .my-playlist-container { gap: 14px; }
+            .my-playlist-container { gap: 6px 14px; }
             .my-playlist-left, .my-playlist-right { width: 190px; }
             .system-config-grid { grid-template-columns: 1fr; }
             .external-detail-wrap { grid-template-columns: 1fr; }
@@ -3407,7 +3459,7 @@
                 gap: 9px;
                 overflow: visible;
             }
-            .brand { padding: 0; }
+            .brand-mark { width: 40px; height: 40px; }
             .tabs-right { width: auto; margin-left: auto; }
             .restart-btn { width: auto; min-height: 38px; padding: 8px 12px; }
             .tabs-left {
@@ -3421,8 +3473,6 @@
             .tabs-left::-webkit-scrollbar { display: none; }
             .tab { flex: 0 0 auto; white-space: nowrap; }
             .panel { padding: 18px; border-radius: 16px; }
-            .page-intro { margin-bottom: 18px; padding: 18px; }
-            .page-intro h2 { font-size: 24px; }
             .settings-subtabs, .source-subtabs { margin-bottom: 19px; }
             .my-playlist-header { padding: 0; gap: 0; }
             .my-playlist-header-row { padding: 14px; align-items: flex-start; gap: 14px; }
@@ -3451,6 +3501,7 @@
         }
         @media (max-width: 560px) {
             .panel { padding: 15px; }
+            .brand { padding-inline: 5px; }
             .tabs-left {
                 display: grid;
                 grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -3846,6 +3897,15 @@
         </div>
     </div>
 
+    <!-- 提醒列表：顶部提醒条只是一行入口，逐条说明和处理按钮都在这里，条目再多也不挤占页面 -->
+    <div class="modal" id="alertCenterModal" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="alertCenterTitle">
+        <div class="modal-content alert-center-content" style="width: 560px; max-width: 92%;">
+            <button type="button" class="extractor-modal-close" onclick="closeAlertCenter()" aria-label="关闭提醒列表">×</button>
+            <h3 id="alertCenterTitle">需要处理的提醒</h3>
+            <div class="alert-center-list" id="alertCenterList"></div>
+        </div>
+    </div>
+
     <!-- Bookmarklet 添加引导弹窗 -->
     <!-- B 站扫码登录（issue：SESSDATA 是 HttpOnly，咪咕那种书签读 cookie 的招在这里行不通） -->
     <div class="modal" id="biliQrModal">
@@ -3952,29 +4012,13 @@
         <div class="header-shell">
             <div class="header">
                 <div class="tabs">
-                    <div class="brand" role="img" aria-label="iFans · IPTV 管理台">
-                        <!-- iFans 字标沿用官网 favicon.svg 的矢量轮廓。 -->
-                        <svg class="brand-logo" viewBox="40 184 445 155" aria-hidden="true" focusable="false">
-                            <defs>
-                                <mask id="ifansWordmarkMask" maskUnits="userSpaceOnUse" x="40" y="184" width="445" height="155">
-                                    <g fill="#fff">
-                                        <path d="M116.928162,334.041016 C110.152260,334.039551 103.865196,334.039551 97.313797,334.039551 C97.313797,287.134796 97.313797,240.767120 97.313797,194.030640 C126.194389,194.030640 154.769775,194.030640 183.711182,194.030640 C183.711182,201.643845 183.711182,209.218613 183.711182,217.243561 C164.311584,217.243561 145.050461,217.243561 125.371185,217.243561 C125.371185,229.403473 125.371185,241.127548 125.371185,253.516327 C142.403442,253.516327 159.608658,253.516327 177.139893,253.516327 C177.139893,261.597900 177.139893,269.022888 177.139893,277.048798 C159.943710,277.048798 142.895096,277.048798 125.255157,277.048798 C125.255157,296.181458 125.255157,314.731201 125.255157,334.042450 C122.253891,334.042450 119.835434,334.042450 116.928162,334.041016 z" />
-                                        <path d="M199.185608,331.846832 C187.428436,325.302094 182.495331,315.330841 183.675781,302.565674 C184.833206,290.049744 192.344940,281.883698 203.567490,277.240692 C214.525040,272.707306 226.212189,272.080109 237.934814,272.180786 C241.060791,272.207611 244.187180,272.184814 247.190399,272.184814 C249.644180,262.049133 245.637131,255.663818 236.008713,253.928802 C225.223297,251.985306 215.245117,255.060379 205.457489,259.108643 C203.935684,259.738068 202.468948,260.500610 200.295517,261.521576 C197.217300,255.951019 194.210526,250.509750 190.618286,244.009003 C196.760742,241.168335 202.263443,238.131882 208.102402,236.029129 C219.083405,232.074585 230.457855,231.291428 242.067886,232.822357 C262.719635,235.545547 273.914886,247.932693 274.013397,268.745941 C274.085144,283.902893 273.847137,299.062073 274.009735,314.217407 C274.078644,320.639404 274.820129,327.054199 275.277618,333.791870 C266.799652,333.791870 258.872864,333.791870 250.437317,333.791870 C250.094376,330.168579 249.759277,326.628143 249.378174,322.601685 C234.486282,337.218658 217.983505,340.060150 199.185608,331.846832 M229.055466,315.640778 C243.974686,312.988495 250.341339,304.446960 247.441452,290.490509 C241.599655,290.490509 235.623444,290.030243 229.757370,290.636292 C225.072784,291.120270 220.262329,292.329163 215.984482,294.268066 C211.589340,296.260162 209.713196,300.548981 210.302979,305.489136 C210.878860,310.313019 213.854782,313.380524 218.384048,314.542236 C221.550079,315.354279 224.922302,315.362305 229.055466,315.640778 z" />
-                                        <path d="M371.010010,334.053925 C366.697601,334.054352 362.880676,334.054352 358.466583,334.054352 C358.466583,331.917908 358.464661,330.130676 358.466858,328.343445 C358.488892,310.347595 358.552185,292.351654 358.518250,274.355927 C358.499207,264.245850 355.048950,258.131958 348.170441,255.598297 C339.196991,252.292969 329.609619,254.415436 323.863373,261.978424 C321.532959,265.045654 319.864655,269.429199 319.783051,273.254089 C319.385040,291.907532 319.630402,310.574585 319.629608,329.236847 C319.629547,330.696686 319.487427,332.156555 319.402222,333.791840 C310.513977,333.791840 301.931274,333.791840 293.067871,333.791840 C293.067871,300.803253 293.067871,268.083679 293.067871,235.053574 C300.925446,235.053574 308.498718,235.053574 316.381195,235.053574 C316.865875,238.501221 317.323395,241.755554 317.935760,246.111282 C319.577118,244.457581 320.629608,243.366989 321.714081,242.309189 C333.293213,231.015045 347.231964,229.777390 361.675537,234.257965 C375.473236,238.538193 382.539032,249.302567 384.318390,263.236725 C385.304596,270.959717 385.173401,278.846497 385.235901,286.661926 C385.360992,302.300079 385.272980,317.939941 385.272980,334.053497 C380.431976,334.053497 375.968750,334.053497 371.010010,334.053925 z" />
-                                        <path d="M408.356262,307.016907 C417.386688,312.854248 426.865143,316.055267 437.353851,315.911835 C438.848969,315.891388 440.355835,315.815887 441.833679,315.602509 C448.405151,314.653595 452.461304,311.213898 452.725342,306.449402 C452.974335,301.956696 450.111969,298.958496 443.454620,296.963196 C434.070496,294.150635 424.499786,291.867126 415.306458,288.536072 C404.827942,284.739349 398.879333,276.824493 398.207977,265.535706 C397.527954,254.101349 402.250275,245.022095 411.714386,238.800217 C428.269836,227.916397 459.326172,230.634247 474.531189,244.280304 C471.149536,249.414749 467.722198,254.618591 464.219177,259.937317 C459.636169,258.110474 455.351654,255.660767 450.762817,254.758377 C444.822174,253.590118 438.626465,253.191986 432.564240,253.352966 C428.486359,253.461273 424.717987,255.602951 424.021698,260.367615 C423.298737,265.314606 426.541870,267.752258 430.608093,269.031128 C438.373383,271.473358 446.387207,273.201416 453.999512,276.029022 C459.683472,278.140320 465.675018,280.613831 470.174835,284.496277 C482.923889,295.496216 481.216309,316.953400 467.480927,327.285278 C456.535248,335.518768 443.912476,336.603333 430.897003,336.078064 C419.697021,335.626038 409.299164,332.364929 399.626770,326.784698 C397.960815,325.823578 396.554291,324.412811 394.746185,322.987671 C398.497040,317.573151 401.942078,312.504944 405.537048,307.545410 C405.933472,306.998566 407.188110,307.073822 408.356262,307.016907 z" />
-                                        <path d="M73.043602,331.751953 C72.230728,332.825775 71.437332,333.925049 70.626282,333.938202 C62.665104,334.067627 54.700993,334.016296 46.378292,334.016296 C46.378292,301.010529 46.378292,268.325897 46.378292,235.176682 C54.965767,235.176682 63.659138,235.176682 73.054893,235.176682 C73.054893,267.197662 73.054893,299.235504 73.043602,331.751953 z" />
-                                        <path d="M44.344109,210.435715 C41.698597,200.461563 45.490929,192.638870 54.097069,189.634171 C62.161934,186.818451 71.113335,190.777679 74.346069,198.590378 C77.264458,205.643387 74.875160,213.454987 68.614372,217.329697 C61.243107,221.891663 52.045334,220.757858 46.870407,214.568832 C45.925949,213.439285 45.284824,212.056107 44.344109,210.435715 z" />
-                                    </g>
-                                    <path fill="#000" d="M228.628952,315.685120 C224.922302,315.362305 221.550079,315.354279 218.384048,314.542236 C213.854782,313.380524 210.878860,310.313019 210.302979,305.489136 C209.713196,300.548981 211.589340,296.260162 215.984482,294.268066 C220.262329,292.329163 225.072784,291.120270 229.757370,290.636292 C235.623444,290.030243 241.599655,290.490509 247.441452,290.490509 C250.341339,304.446960 243.974686,312.988495 228.628952,315.685120 z" />
-                                </mask>
-                            </defs>
-                            <rect x="40" y="184" width="445" height="155" fill="currentColor" mask="url(#ifansWordmarkMask)" />
-                        </svg>
-                    </div>
+                    <a class="brand" href="https://ifansclub.com/" target="_blank" rel="noopener noreferrer" aria-label="iFansClub 官网（在新标签页打开）" title="访问 iFansClub 官网（新标签页）">
+                        <img class="brand-mark" src="data:image/jpeg;base64,/9j/4AAQSkZJRgABAQEASABIAAD/2wBDAAICAgICAQICAgIDAgIDAwYEAwMDAwcFBQQGCAcJCAgHCAgJCg0LCQoMCggICw8LDA0ODg8OCQsQERAOEQ0ODg7/2wBDAQIDAwMDAwcEBAcOCQgJDg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg7/wAARCAKAAoADASIAAhEBAxEB/8QAHgABAAEFAQEBAQAAAAAAAAAAAAoBAgcICQMGBAX/xABtEAACAQIEAwQEBQkODwwIBwAAAQIDEQQFBgcIEiEJMUFREyJhcTKBkbG0FBY4OUJydtHSFRgZIzNSYoKSobPBwuEXJil1hZOUlaKjpLLD0/AkJSg0Q0ZWWGZ04/E3SFdkc4OGljZTVGVnd4T/xAAUAQEAAAAAAAAAAAAAAAAAAAAA/8QAFBEBAAAAAAAAAAAAAAAAAAAAAP/aAAwDAQACEQMRAD8A4BgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAKWba6metiOHTdbiL3NhpPa7StXPcVCzx2Oqt0MFl9NvpUrV3dQ9is5PwTAwNa4tYkS7cdivoWlpjB4jdbdvOszziUFLFYTSmEoYXC05WXqRqVoVJzS6rmSjfyXcZEzzsYuHPF5W1kuvdeZLjFTk6dSpisJiKbdunNGWHu1fwTTYEZYHSnif7NLeXh3yLG6uyarQ3X27wsHUxuaZRg5UsXl8PGWJwzcnCCX/KQcl0d4xSObleMY1moJpe2z+O67wPEAAAelOPNKXTmtHuvYq43680LpLukkB5Av5bK/NG336uFG/S8fjkgLAejp3ffD92vxj0b84f2xfjA8wenJ7Y/u1+Mpyq3ev3cQLAXpdO9fuol3IrfDj8sfxgeQL+X2r93Ecq81+7QFgPRQt38j/+Yvxjks/uP3a/GB5g/Q4JOFoxcv2Ek7vw8WjwaSk0ndX6MCgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA+1280TnG429ektB5DR9Lneoc3oZdgYqLl+mVqkacZSX62Ld2/CKk/AmkcO+wWieHLhkyHbnReX0qUMLRjPNcx5F6fM8Va9SvVl3ybleyfwVZIjddkrpDBap7XvT+YY5831t6czHN8LFpNuslTwy+K2Kb+JkrqKtTS+YC6yUbJJL2Io0mrNXRUAfixWHpVqUqdWnCdGUHGcZxUotNWaa8U03e5Fc7TbhQyrYPipwGtNE5Yst251v6XEYbBU4Wo5ZjoO9fDR8FCSfpILw9ZdyJV7SaaaTurM5l9rLpTLM87I3Ps6xVOTxunM9wGNwTjFP1p1lQkn5JxmwIolRJW5VZeD8/H5ep5npUSUrJpxT8PPxPMCqv61vK5Mr2T4Y+H3E8I+1+ZYrZrR+Ix+L0lluIxOIq5FSnOrVqYSlOc5Nrq3KTbfmyGovuvvWTnti23wVbQN9/wBZGU/QaIHzs+GDh5qSvPZbRkn7dP0V/EVjwwcPMfg7LaMX9gaP4jOwAwRPhf4eKitLZXRcvfkFH8R5rha4doyT/oJ6LX9gKP4jPYAwO+F7h3aaeymi7P8A/YKP4i3865w7X/8AQpoz+8NH8RnoAYFfC3w6vv2U0Y/7A0fxFPzrXDon/wChLRf94KP4jPYAwP8AnXeHf/2K6M/vDR/EXLhg4eY/B2W0Yv7AUfxGdgBhCPDTw/w+Bs1o2PuyCh+IufDbsI+/Z3Rj/wDp6j+IzaVu/MDjD2qmyu1Oh+y/hqHR23enNLZ3DWGBp/V2V5XToVuSaqqUeaPg7RuvYiNQ+9kqztfV/UhcRLxWsMtafxzIqfergAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABvJ2du62D2i7WDa7Oc0xSwOSZxXq5FmVWTVlDGR9HSbb6Riq6oXfgrt9CYbD9SXVS9q7iAzh5ShUhJXjLq06b9a3mvarfISW+AXtHtL7i7e6a2g3qz7D6e3KwNCGDy3PMfVjDCZ9TglGEZVG0qeJUbXUnaffe7A7HA/LSr+kwlKpGSqRnG8aiV4tPud10+NHpGrzRk4tSkvCPX3gKkpRqJqVotdbr/b4zjj2xm72ByDgm0ntNRx0XnerM5hjsThodGsFhPXcn4pOtyRXn1N6uJHi42c4atuMbmmvdR0MRnrpNYDS2XVYVcxx8/CCgn6kW+kpzsorr1ImXEhv/AK04j+KDO9yNZVY0quLfocuy2i26GW4WL/S8PTv32XVy8ZXYGBZtvl/WqKS+f+MsKyk5NXt8SKAVXwZP9iToNjklwX7RpdEtFZSl/cNEgvr4MvvSdBsb14Ldo34vReU/QaIGUwAABbNuNGTiryS6LzZg/dXiS2Q2Q1FluV7rbkZTorHZjRlXwNDHzkpVqcXyuSsn0UugGcgaavtBODhK/wDR+038U6j/AJB5vtCuDaK6796efuVb8kDc4GmMO0J4Npvpv3p2P3yrL+Se36IFwcf9YDTX7up+QBuQDTmPaA8HEv8A1gNML76pUX8kvlx/cHEVd8QOln7I1aj/AJIG4YNOIdoFwbylb+j/AKZXtlOql/mnv+f64Of+sJpP+6Kn5AGu3a+v+pF1Y+D1llqt8cyKoSHe024rNgd3+zhWj9sd18j1lqF6rweIlgcBKcqro04zcqnWKVk2kR4vHr0AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAC9VJRglF2636d9/MRqSimlZpqzTXRosHyfKBsdt5xc8Se1mCo4XQ282psmwdJWp4SeP+q6EV06KnXU4pdF0SSPutU8f/F9rHIamWZxvpn1PB1IOFSGXQoYJyT77yo04y+Ro026/wDkx18v30B/UzTOc2zrO8TmWb5nis1zHES5sRi8biJVq1V+cpzbk/jZ/OlOU2nJ3srIt9/zj/bvAAACq+DP70nQ7HdOC/aReC0XlX0GiQXl8GXuJ0GxrvwWbRSfe9FZT9BogZTAAFGrxI5fbZzcOKDZSMZOP9K2L7v+9MkavufuI43bbq3FJsn+C2L+lMDiN6So3+qS/dFfSTX3T+UsAF/pJ81+d3949LU/Xy+UsAHp6WpfrK/xIelmu6VviPMAenpanjK/xFPS1P18vlLAB7OvUcVG9op9yPHvfXqAAAAAAvUJSSaV/MCwHrGjOc7JK3vX8dh6J3d5Je+UfxgeQPZUk03zRfs9JFfxhUX4qXxK6+UDxB6OHrNK7S8Um0Wyjy9/f8qa87gWgAAAAAA/26gAOvmn8Y6+X74AD4mAABTqBUdT09FNSUWvW8Y2d17+h6OlJcv3MX4zajf3XYH5uo6n6OTp0nG/k3H57j0U0neL81ypST+NMDwB6ct3HpJuSuvVtf3eZY1Z27/iAoAAAAAAAAAVUW1J2dkrt27gKA9VScl6ilJ2XTl6/J/GJUZRiua0JeKm7fvMDyBeqcnfrHp5STZ7Rw0mm38HzhaS+OzA/MD05LuyfreXj7y1xVm07x8JPpf4gLQAAAAAAAAAAAAAAAAAB6xgnTUm+Vet1fc7LuXtO2e2fY6Y/X/D/ozXFTe7D5cs/wAlw2YrCx05KfoPTU1Pk5nNXte17eBxNhK8eW1rQl8fS5OE4b048AWy8U2/6Scs6v8A7tADjL+gi4+/TfvD8v4Mv/WFf0EbGvu38of/AGy/9YSA79LD4wI+lfsRs1Sfod+8Jfl6c+mJ2v71UOV3Fjw54nhd4tcTtZi9UUdXVaWU4XH/AJoUME8NGSrxk1Hkbb6cvfcmrzheXNdrpZ/xW8u8iqdrzHl7X7MH+u0dlcr+fq1F/EBy7A8vcAKr4MvcTn9i/sKdofwKyn6DRIMH3EvcTntinfgm2ffdfRGUP/IaIGVQAA8GRxO23lfip2Uj4rSmJfy4pkjp9xHC7bZP89lstLw+tLEfSpAcSQAAAAAAAAAAAP3YHLsVmWYYfB4CjVxmMr1I06NGjSc5Tm3ZQSXVt9LWA/LGnzRvez8n4+7zP72ntJ6j1Zq7C5DpnJMfqDOcRJRo4HLcHLEV5t+UIXfiursjsPwt9khrDWOEyzWXENmVfQmm6ihWo6ZwM4vM8VTaulVqX5cMmvDrP2I7v7QcPOzuxekaeVbW6EyzSkOW1bF0KCljMQ/OpXl687+V0vYBG+2m7JXid3Bo4PH6tw+U7T5PWi25Z7ifT4yPlfDUeqb8nJHQjb7sYtnsno4avuFuVqTWGJjBLEYXLKNPLsO5ePWzqW98jtBGiozcuZt81+q6F3J1Vm0l4fjA0Y0r2bfBvpWNL0ezuCz2pTfSpneMrYxy9rUpW/eM0YbhR4a8HhYUcNsdoynSgrRj+YVJ2+VGwKVioGAqvCvw31o8tXZDRk1a1nkNH8Ri7UvZ8cHuqI13jdj8jwVSr8KrlrqYSa9zpyVjc4AchdwOxz4es8w1aegtTao0Di2pSpRliYZhh4u3c1WXNy+53OaO9XZOcRm2eExubaPjgd3NP0Up8uQXpZjGL75fUlR3kku/lnfyRKnabaalZr2XLXBPxv1v16gQI81ybMMlz3FZXmmDxOX5lhqjp4jB4rDypVqUl4ShJKUX70fzJJWvF9PJvqTJuKbgj2c4odJTqaly6Ondd0qbhl2rMsoxhi6Taso1V0VeHdaM3dPufg4qfERw77icNnEbj9udwsHFYuMPT5ZmmFi3g80wrbUcRRk0rp2s0+sZKUWk0BgMF0koysnze1FoFYpOpFN2TfVm0PCXw1Yzil4sMPtfhNUUtH1auT4rMFj6+DeIX6RyKUORNO75/M1ejJRmm1zLxXmjqr2QD9J2u1KTSutFZp1t1fr4ddWBsnDsR82UV6TfzCX/AGOlp/6wvfYj5lyvl38wvN4f0sy/1hIIXcugAj3y7EXPfDf3BfHpip/rTmnxf8KGbcJm/uSaIzHVdDWMM0yaOZYfMaGBlhYNObhKHLKUrtNefiTOpL1JWsnbo2R8u2j0ri8Xu9sJn2AwlSvjMZgMdlVGnRpOU6k1WVSEIqK6yvKyS6u4HCKNGM+X0fPK7Sa5eq9nt+I6H8OfZpcQO/WS4PUuY4GntbobEQU6Wb6ioTVfExa+FQwqtOcf2UnFe86XcBfZtZPt7lWSbvb+5LTznXtanDE5NpbE0/S4bJb2camIi+lTEW62fq0+59TtNPDRlhXSjJwXKkrLy/i9nT2WA5VbYdkVw06Qw+HxOuMTn+6GYwalNY7F/UeDcrdbUaFuZX/XNm4mRcGnCxpvAww+UbD6PoRj91VymFabfm5TuzZdwTaf3SVrl6VopeSAwNV4XOHSth5UquyejZ05KzX5g0V+/Yw3rHs6eD7Wk69TGbO5fk2Jqp3xGSYirgpxb+6Xo5JX96N3QBwr3i7GTSuLy3F4/ZPcnGZHj4c0qeVappLEYadk7RjXppVINv7qV17Dixvnw27wcO+4P5gbq6RxORzqq+CzKlJV8Bjo+dGvFcsvc7P2E3eVKMpXffe6Zj/cfa7Qu7O0+baH3D07hNUaazGPLiMJi48yj06VIS76c0+6cXf2sCCjJWqNLu8OpadGOOjgK1Pwt68lqnTlTE6l2ZzPEKngM2lBOrldaXVYXE26LonyVPu0u5STRzpnFRquKd7ewC0AAD0hTc4truTS+N+ApQjOTUpcqVu5XOinAzwF6m4otWS1PqbEYnSmzuBxHocZmcIJYjNKq6vDYXm6PylU7o+F2Bpht1tFuNu3r2OmdtNH5rrTOpSSeHyvCuqoJ+M6nSMEvOTX7x1t2h7GXcPOcJg8x3i3Gy3REJybr5PkmH/NDGQj0tetK1KMvZZ2Z3p2p2b212Y2uw2jts9K4HSuSUKcYyjg6S9LiGujnVqv1qsm73cvb0Mnqja95tq97JJIDm3oHspuEfSGCp/mvprNtwcbGKVSvn2b1HCTXj6KnywT9y7mbG5TwX8KmSYZUct2E0dQglb18pjUb9rcr3ftNmYQ5ZX53Ppb1u89ANeanCXwz1Y2qbF6Lkv6xUl/EfEai4CuETU2EqUsdsXpzCuas6mX4d4Wa9qcGrG3oA5W667Ifhc1LhMU9MVdUaAxNW3L+Z+avFUadvBU66kmvZc577u9jbvBpzCYrMdqNcZNuNhaSlKGXY6Dy7HOKV1GLd6c5PuVuXqSWWk42fVFHBONndr2gQV9xdodx9pNZfW9uTorONE5xe0aGa4N01V+8n8CfR98ZMx04QSk3O1knZqzkTr9fbXaE3R0Fi9MbhaXy3WOn68HGWBzPCRqxinbrCT9anLovWi13HA3jA7J7NNJZNmm4PDXVxWp8joU5V8Zo3FS9JjsNC3NJ4Wp/wAtFJP9LdpeC5mBw9B+mthauHxdTD16c6OIg3GdOpBxlGabTi0+5qzufmAAAAAAAAAAAAAAL4O0n97L9+LJxPDmuXgJ2XXfbRGWfRoEHWHwpfev5mTi+HX7AzZj8Ccs+jQAzOAALZe3qrfxkVbtfftvGJ/AnK/nqkqpx5vEiq9r79t3xD89E5X89YDlt5e5AeXuQAr9xL3E57YpcvBRtBDy0RlK/wAhokGDwfuJ0eyCtwabSx/W6Lypf5FSAyiAAKNqMbv/AMyOJ22slLit2X6pf0pYi3X/AN6lckdtXVu45y8avALDi73Q0dqV7kVNEyyHKKmXrDRypYmNdTrOpzt8ys+tgIk3f4r5R0va6ud+32I3Xpv67fgz/wCIXw7Eamvh7+Ta8baZ/wDEA4BWt0ff7LMcr8nf3MkCx7EjBJdd+q9/ZpqP5ZV9iRgLO2/Na/4MQ/LAj8fGil0SAJdiNST9Tfyf7bTV/wDSHn+gjv8A9vr/APtn/wAQDgJde/3F6g5N2fd3s7+Q7Eal/wApv5Ua/Y6bS/0hqHxndnZHhP4dsj1/R3LlrOGOzqGWVMJUydYf0TnCU1Pm5n09W1vaBy8fRtGRNq9ws02q4iNFbi5PCOIzLT2a0cdRo1IpxqqEvWg7prrHmjezte/gY78T0U4q1otW7n4p9P4wJ0W1W5mmN3eHzSW4+ksSq+R6iy+GNwrjK0oOS9enLxUoSUk0/LuMl03F0YuHwGrrp338SPN2P/EtLLNX5xw3aqzBrL81dTNdHKrLpHExXNisNF36c8V6RLxlFrxJC8KkPRrlle/Ve2/Xp7APUH4cbmWAy7Ka2Px+Lo4HBUetXEYmtGlTgvFuUmkl8ZpjuZ2iHCXtdiMRhM13Tweos0o1OSpl+maM8xrxft5LQX7oDdzreyS9hbzLq0014O/Q4ja17anbbL8wxVHQuz2f6hjyr6mxmbZlRwMJdX1dOMZyS/bGAsf22W5zxtT8zNk9L0qPN6n1XnGKqSS9vK0gJGzlZeHvb6CMlJOzTt5NMj5aV7bXOo4yj9emxeCr4fmSqyyXPp052ffyqrGXyHQfYXtK+G3fLUeB03HOsVt/q/GVfRYTKtTQjRjiqnhGlXi3Tk35S5QOhALIT5+bpy2du8vAtnHmirScGu5rvRptxr8KeRcUnCDmWm1ClhdwMphUxmjs1qJJ4fFKN1QnLv8ARVbKD8m4S68tnuWWT5eT1leN+qAgT57kuZ5Bq7NckzrA1MszjL8ZVwmNwdaLVTD1qcnGcJLws00fxvE6ndrPs/hduO0onrDKcD9TZPr7K4ZtVcI2h9XQk6WJ/bScVUftmcs5e4C3v6eZ1V7Hrr2uMPZojNH/AIzDnKpdJJ9/U6sdjxG3a2u/etC5nb+24YCU4u5AeAAGKdabO6O3A3m241tqjBrMsw0Ti8TjMjoVYKVKnia0FBV2n3ygl6t+5u5lYo3aLfkgPCOHUYxXM7K/i799+/8Af95+g8o1YypqT9S/g2YZ3e4iNm9iNKwzbdTXmW6ThUi3h8LiKvPi8Q/KnRhecvfa3tAzW+kebwKX+I5A6x7ZTh3yWo4aT0hrHWMk7ObwtLAQfu9I5O3xH8LTfbS7K5hn1ChqPa/V+nsDJ2q4ulWw+N9H+0jyt/KB2cBrFsjxh8P3EHH6n2119g8dnqp888ix/wDuPMI9L2VGfwvG/K3a3U2ZVS8VLlaTSav08e4D0KW697t5IJ3jdX+NFQMf7j7faX3Q2g1LoLWuWwzjTGeYGeFxuFa6qDXwo+U4vllF+aT9hDG4kdjNQcPfGBq3a/UMnUll2IU8sxrXqY/BVLyoV4vxUo9H+yi0TdKlP0ifVX6Wv7Di/wBsRsJR1Lwx6b30yijFZzpHERy3OLLrWwGJmlCTSXX0dblfkoykBGxatJrr7Ll8Ic8XZ3l1tFd/T/b94VIShVcZXv43Vn5W/esKaVru3V2S/wBvk+MDZThR4ec44luM7TO2uWV3hcqqzli89zGzSwWApWdap9816sevVsmTaD0FpnbnaDINC6Py+nkumslwMMFgMJQSSp049/vcnduXe5Ns5Wdj3srgtMcFWe7xY7CRjqHWeZTw+ErToWnSy/DS5Ywi39zOpefxI7DQhyQSvd27/MBGHLOcr/Cd2vBeHzWLwWVJuEbqKl75W6gVk+WN7XHOlJJ9G27J+NjUnih4ytoeFjRuCxWusXiMy1JmFOdTKNPZbFTxmKUbpzd+lKndWVSXRvojjtrTtp918XnmIjoPanTOnsr5n6CWcYvEY3E2fdzckoQv+1Akfc6VuZqN/ai5uyvYirYjteeLipnixNPGaSoYW/8AxSOnoSj+6b5v3zMGjO2m3bwWNw9HXO1WltSYPnTrVMsxFfBVml5c0pQv7bASSIyb8PjLjlXtV2uPDNrfE4TBa1jne02ZVm7zznDfVWDS699eiu79odJdHa+0duDobDal0RqTLdV5FiIqVHHZXjI16Uk/Nx+C/ZKzA+tl+py9xzy7RPizocNXBvXwGnMyit19X0q2B01CE16XAQ5bVswt4KmpRjB2V5yja6Urbsbh7gaZ2w2S1Rr7WWNhlunMiy6rjcdVlJfAhG9o+cpOyiu9t2IYXElv5q3iP4stU7naqq1Kbx9T0eV5fz3p5bgoNqjh4eCSXWVvhTlKXiBgrF4yrjcdXxNec6uIrTlOtVqz551JSfM5Sb75Ntu5+QAAAAAAAAAAAAAAAvgvWftjL5mTi+HZW4DtmV5aJy36NAg6QfV+yMvmJxnDu78CGzTXc9FZb9GgBmUAAL2RFT7X37bviF5aJytfwxKrfW3x/wARFU7X37bzivwLyv8A0oHLfy9yA8vcgA8Je4nSbJNfnOdqOn/M3KvoVIguWvGXuJ0WyDvwbbT+3RmVP/IqQGUQAAAAAAAAAAK3ZQAVuzkf2x9aEezQ07TlH1pa2wqXvVKbv8h1vOQXbL836HLo63d9e9Dm/tEwIxL+EygfewB9ho3Vee6E3N01rTS2Oq5ZqLJsbTxuW4qlK0qdalLmXxeD802d3tf9s3k2E2FyGjtrt1UzHcfE5XTeb4rOZeiy7AYpwtUVOEXz1lzXcV0Vmk+tyPpGSXfdq1uXz8+vgXSqc0lKV213Pmd/Z1/mA2I3n4rt+d+s5q19ytw8zzbBObdPKcPU+psBST+5VGnZW++bNd5VpcijD1YpdPB/vHn3vusV5enegKym5NNq6tbl7kWXZfy277L4yqXfYCkW1B9Ot++/h7j3pV6kHN0pOKSV/B9H0fTyZ5dFFc3S/dctVuvRuF/Wt4gShuyl4qs43l4bc72o17mdTNtc6FhS+o8fianNWx2VzbhS52+spUZJQcne8ZU+rakzrUn0V1Z27vIixdj9mmOwXaxVMHQrThhsdovMIYqDl6tSMZ0JRT9iaT95KapuTUk1ZJ9APQsm2qba6W8fIvKNXXcn7wOL3bQ6Kp5nwV7ba59CvqvItWywLqx7/R4ui3yv3uhf33I10u/2ksntXcpwuYdjnrGtibyq4DOctxVCaVn6SNWUE/knIid1eW8uW69ayT8gPFO3U6kdkNXqUO17yyMOqraSzSnUv5fpMvnSOWz7jqZ2QtL0na+5e1b1NJZpP+BQEqhfBRUovgr3FQA8HbqwfD7i67yXbbYfV2vtQV44bJ8gyivmOLlUdlyU4OXLdX72lH4wNEOPfjlyzhb25hpPR9TDZzvLneFlUwGGm1KllFB9FisRHxbfSEPHrJ9EyLPrjcHV24+4uY6t1tn+O1PqXHVXUxWY5hXc6s2/Lwgv2MVY/ubu7p6i3k4jNXbl6wxFTEZ9qHMZ4utH0nNChGTtTox6L1KdNRpxXkr+d8XAXuSl1k234+IUkk7J38OtiwAf28n1Bmun9TZfnOR5hisqzbA1lVwWMwtZ0qtCad1KMl1T+f8AeJVXZz8aNfic2Lx2lNd1of0WNK4ak8xrRSis4wrtGOKUfCakmppdObqujInRvJ2d+5OI217V3afHPEOhlGc4+eSZmlLpOliYuKTS70pxg/lAmHrorFSyndUYp/CXR+1+JeAMKcRmiKG4/Azu3ojErmpZtpPHUI+rdxn6GThJe1NXRms/Fj8NHF5Xi8LJJxxFCdOS98XH+MCA7Wu613fqr2bva/WxdQm4OVkn911X61No+z3OyH61eIfXWmeR0/zI1DjsDyvw9FialNfvRPiqUZSk0rdfVSftVgJqnBnp2lpXstdickpPmVHR+EqSm4pOUqkXUk2l7ZGzZrJwaZ79cfZZ7C5xKznX0Zg1K3nCLg18sTZsAeVWpGChGTVpSSPU8qsPSQUbJq/i2mvamu4CGnx3651DrvtUd48x1JiKs6uBz+pleCoVLr6lwmHSjSpwTs1Hvk15ybNP204L1UvOz7yRj2iHZuas3V3OzHfHYmnh8z1VmEYS1NpavXjRqZhVhHkjicNObUPSOKjGVOUopqKabldOPxq7QetNA6zxOndbaXzPSee0Kjp1cBmuCnh6ya77Rmldfsl0fg2B8k7Nd1isLQqxl16MryNLr0626leSSlZ2T8m7fOB60q/o53V4+q109pl/Z7f7dfYfXtLUO1ussw0ti1NOvQo1efC4lL7mrRl6lRe9J+0wy1ZX71exQDodxN9orupxOcNOmtt9R5Hl2mcBhZrEZ9VyirNLOcRD9SlKEv1OEX63Jdpyt1sc9XO6k3e8ndpPp4/zHn1AAAAAAAAAAAAAAAAAF0e9+2L+Zk4zh2TXAdsyn3rROW/RoEHOLXNbxtL/ADScbw7tPgR2ba7norLfo0AMygACjdrP3kVTtfPtvOL/AALyv/SkqqXd8T/iIqna+L+q9Yv26Myu3+NA5ceXuQHl7gBVfBn96TotkE1wb7Tp960ZlSf9xUSC6nZS+9ZOi2RalwcbUSXc9G5U1/cNEDKIAAo2oxu3ZebLVUi4pu8b+DXXuvYukk42fVeXn7Dhp2snENvLsrvltNlO1u4+d6GweZZDiq+Po5RXjTjiJxrqMZSun1STQHcrni33/vFbohivjv4umvsgtZf3xj+QW/n7eLv/AKwOsf74R/IAmd8yt429xT0kPN/IyGPHjw4vovpxB6w/u+P5B6fn9OL+/wBkJrH+7ofkATNeeH65FPSQva5DOXHvxgr/ANYXV/8AdVP8gPj54w2rfng9XW/71T/IAmY88fM5C9srVh+hxaQpu6lPW1BpNeVGf4zh/Pju4vJr1uILWD92Piv5BjjcTiO3t3b0jhsg3L3Oz/WuTYfE/VNHBZpi/SUo1bWU1ZJ3swMHtWbT7wVk7zbvfr3+ZdCnOpK0VfpfqwCpycFJLo+72lfRTSTdo37ryXU2+4XuCrePil1Y/rPyqOTaKw1dUM01Xmd44Kg++UKfjXqpO/JC9vGxIu4fuzc4cdjcJgMzr6bjuRrSkoupnep4RrxhNd7o0LclNeSd2BGI224Yt+93K9L+h/tVqPUNCcrLF08vlSwy9vpanLG3tTZvPorsguJ7UOGo1tSYvS+habfrQx+YyxNaCf7GmuW/suSh8NgsPgsHSw2Dw8MNhafSFCjCMIRXhZKyXuR+iMGoq6TaXe/Pz6AcDMh7ExuFKWpN9/8A41PLcg7n42c5v5jKeXdips5Rs8x3b1djPNUsJhaaf+AdpIuXJ6yXN4lQOQNPsZ+HaFPllrfW0peLWKw6v8Spn4a/YvbAVJ3p7ia2p+SdXDSt8tM7GADn5w09nbtPwv8AEFLcnRmptRZ1n0sqrZc6eaVaPoeSrKDlK0ILquRfKdAIpqbv18n4svAAAAc4u1Vmo9jZr9P7rMsviv7f/MRLan6tU8ru3yksrtXHbsb9ce3N8uX+PZE0qtOtL75gefedU+x9X9V3ot/9DM0t+7oHKzxR1U7H3r2u1JeWis0b9znhwJUC7kAu5ACj6xaTs7d/kan8btNvsj+IaPKlF6Ixrte9vVTZtj4mqfHDJU+yP4hW+5aHxv8AmpAQuqj/AEyLLCs+solAAAAGUdl8XiMJxb7YYjC1ZUcTS1blkqdWDtKDWKpqy9nUxcZI2e+yq22f/avLfpdNATqopK6X65/OXFqfwvvn85cALWv0yLt3MuFvWXvAg9cTHL+iGb6crbj9f2b9Wv8A3yqYUhN0/Xj8KLvF+TM0cSjUu0H3za7vr/zj6bVMJW6+zyAlCdkLvNgNY9n9jdsMVjpVdQaHzScKdGpUTnLBYmXpKMorv5YycoPwTsdboTjUi3Hqk2r+diFZwkcRGoOGfjL09uTldKpjsmi3g9QZVSny/V+CqW9JTXhzx6Tj5NExvbfcHSO6OzGR6/0NnlDUGlM4w8a+Bx1CXSSfRxkvuJxa5ZRfVSi0wPuwWxkpXte67013FwFsk2klb29bfIfB662v283O03UyfcLRWTayy2dNwdHNcBTr2T8pSV4+9NH3wA5bbqdkpwx66nVxmkaWb7XZlJWisoxbr4RexUa3Nyr71o597idjBu9kkauI243E0/rWik3DCZhRnl9d+y/rwdviJJoaU4WkuvgBCu3R4NOJfaGpWnrPaHPsNgIX/wB8Mvw31fhWk/hKpR5uVffJGsdXDVqOInSqQcakHacX3xfdZrvT9jRPkqYeM6M4WTTTTVlyy9jj3M1L3w4IuHbfrKcVU1nt/gst1BKP6TqDIYLBY+m7d7lBcs+vhJNO3eBDLlTlG97XXek7/GWHVvid7KzeTaDLsz1XtfVe7ug8PF1Z0sHhvR5tgaSV7zoLpVilduVO/RXaRypnRq0q1SnUg6dSnJxnGSs4td6afc/CwHkAAAAAAAAAAAAAAACsE3Uf3svmJxvDsrcB2zSff9ZWW/RoEHSm0pv72X+aTjOHd34ENmmu76yst+jQAzKAAKNXtYiqdr479rzibf8AQvK/9MSq72miKl2vP23nFr/sZlXzVQOXIAAfcy9xOh2OX/Ax2k/ArKfoVEgveEvcTo9kfsNtpku5aLyr6FSAyiAAHd1I43bayT4pNloX6x0pinb2vFv8TJHD+CyOF22vTix2YT6P608R9LmBxJAAAAAAAAAAFbP/AGZvjwK8GuecVfEFH81KWIy7anI6sKupMziuWdbxjhKDffUn0u18GLv32NNNI6WzrWm5undJZDgp47Pc8zChl+W0Kcbyq1q1SNOEV4Xbl4tefcTTuGvYjIOHPhC0rtjkGHpSngsPGrmuMguuOxsop1q78esvVivCMUBkvR+hdN6C2vyPR2i8pw2mdNZThVh8vy/Aw5adCC8F5t97bTbldu59jTi40IRfelbvv+++8uXculioApzK7V02ldpPqijnFXu7WNcuIPin2b4adG0c23O1TDBYvFRby/JMHF18wx9v/wAukmrRv055Wj7QNj07+fdfuKc0fNfKR0d0e2j1zjsxx2D2l2uyzTuXuVsLj9Q13i8Q1d+tKlDlhG/Tp197NQM/7UHjMzzEVHT3PpZFTkrcmV5LhaaXucoNr5QJdnNHwkn7mV5l5kNar2gnGLWnzz361EpfsHSivkUT864/eMNdVv7qX+20/wAkCZe6lNOznFe9lykm2l1+Ijsdmtxc8Q+73aVZfojcrdLNtYaZr6cx1Z5fjlTUJVIKDjPmUbpx6/KSJaafLzNfCSft7vEC8AAc2O1d+04a2/rxl38MyJrVTVef3zJZ/asQ5uxt127XtmuXP/HkTKr0rSv380vnA8jqr2PKv2ud34aFzK39sw5yqOq3Y8/bcP8A6FzL+Ew4Ep5dyAXcgANT+Ob1uyL4iGuv9I+M/wA1G2D7maoccaf6ETxDq3/MfGL/AAEBC8l8OJaXS+FEtAAAAZH2h+yp2zt46sy1f5ZTMcGSNoF/wqtsvwuyz6XTAnVd6l987Fy7i2P8t/OXeL94Ar4r/bxKFfFf7eIEHTiR+2B75/h/nH06qYVM18SSa7QXfRPv/ogZx9OqmFAPalPkcndJvp1VzcrhO419z+FHXU/rbqLUegsfiFLOtK4+rJYfES6L01GX/I1uVW5rNNJKSdk1peXJpRl5vp3dLATK+Hnjl4e+IfJ8DR0xrGjp3V2IgnPS2fSjhMbTlbrGCfqVkmu+EpeDaV0jcRVIOaipLmavy+NvcQF6WInQxNOvQqToVqc1KnKnJxlFrufMuvQ3Z2X7Qzif2VhhcBleva2rtOYfpHJdTJ42g15KbaqRVv2VgJiHPH1vWXq9/sKpqSTi1JeadzhZtp21GkcasLg92NpszyOsoL02Y6ax0cVSUrpNqjUUZJWu/hvyN/ttu0F4Sdy8Xg8Jk+8GWZLmeKTcMBqJTy6ovvp1f0tP9uBusD+VlGeZNqDIaGa5DmuDzvLKyvRxmX4mGIo1F5qcG4v5T+mpRbaTu132AuKP4L6X9gTT7nf3FQPyzpTnGX3DvdOLd35e73dUcce0Z7PLLtzNFZxvdsjkFPLtz8FRniNQZJgIKnT1DRiryqQgun1TGKb6fqvd1n8Lsx7iyom6M1Hxi7+s0/ia7gICdShWpVp06tKVOpCTjOEo2lFro014Pp3HkdSe1S4dMHszxzx13pnBxwWjNwadXMFRpUlGlhswjP8A3VTjbolJuNVW7vSWOWwAAAAAAAAAAAAAAj+qv71/Mycbw6/YG7M/gVlv0aBB0h+qP71/MycXw6tPgM2ZafT6ycs+jQAzOAAKNXa+Mip9r21+i94v8DMr+aqSrrpWv5kU7tfE/wBF5xX4GZX81UDl2AAH3L9xOk2R+w32o/A3KvoVIgt+D9xOk2R+w32ofg9G5Vb+4qQGUAAA6X6kcTtuEvz12ykvF6SxH0qRI7fcRxO23+yq2Tfh9aeI+lSA4jAAAAAAAAD5wF+qIDpt2UGgMJrjtbdPZpjqFDFYTR+R4zPXSxCb5qiUMNSlFeM4zxEZr7y5K8j0pxu7u3eRsexThh/z727Vao4rEQ0IlTlLvUZY2jzP3dF8qJKCd1e1r+YAAAYs3k3Iy7aHhr1xuZnFCpist05k9XHVMPCyeJnFWp0rv4PNOUVfwu/Ihb7t7waw3t3/ANR7ja7zSeY5/nOJlVqSm3KGGp3fo8PTX3FKEbRUV5XZK07R/Jszz7scN6sJk9KeJxeGy7D4upSpX5vR0sVSnVfTyheTXkrkPSS9Z2Xq36O3eBWpJSrNq7XtLA+js+jAAqoyldRTbs30KWb8D0grJy6qcesbe/qB037I6Ev0YbIm01y6YzNvp3epD8ZK3jJOK6WtFdDjZ2UHCPj9stq8x3+15lM8Dq3V2CjQ07hMTBxr4LLG+aVWafVTryUXbvUIxf3R2Rppqn1upXu0/C/WyA9AABzi7VR27GvX/tzLL/4ciWVV/uiT71zPqSzu1Zly9jdrr25rly/x7ImNTpUkv2T+cDzXwl7zqr2PH23BfgNmf8JhzlUdVux4+24P8Bcy/hMOBKeXcgF3IAPE1U44FzdkjxDK3/MjG/5qNrF3o1W43U32SvEIkrv6x8b0/aICFq++JaVfwviuUAAAAZI2ef8Awrdsvwuyz6XTMbmSNnfsr9sl4/Xdln0umBOqj/Lfzl3i/eWx/lv5y7xfvAB9y+L5wUfwo/7eIEHniV+2Fb6//wBgZx9NqmEjNvEr17QnfVrqv6IGcfTaphIAk33K5c4Sj3xa95fBP0U2mk/fa1utzZjKeEbfzUHBtS37yHQGYZ1t/PEVaXpcHH0uL9HTtzYn0CXPKjdtekS5Vyu7A1jaatfxVyl7HrUpyjNxcGmpOPd3td55uMlFNppPubXeBS777vp5HtGcFNOSVVeKkrXPKz5Oaz5b2v4FAMj6I3X3H26zujmGhte5/pHFUU/RyyvNalFL9qnyv3WOkex/a47+6BzLAZfujTwW7+mqcI0608VSjhM0hBSvKca8OlSVr9KiOSl15l8H+mJrvXW/l7QJuXDxxF7bcS+yGG11t1j3VoU6noMyy7FJQxmWYjlUvQ1oLpdp3TXRo2AIzHYy6mz3A9obrDSuDqSWQZroytiMyoKb5fS4evRVGpZ9G/02orrvU35EmcAUkm6ckr3at0dmVHx2A5A9sjpPB5j2b+ltVyourjci1rRVKqu6lTxNKpCoreN3TgRibNdLdxKt7XqvQpdkJmdKdSKqV9WZZGlFvq2nUbt8hFVbXpJ+8CwAAAAAAAAAAAABfDvn94/mZOI4c01wC7MJqz+snLOn/wDmgQd4LrJ/sH8xOO4evsFtnfwMy36PADMfgvcAALZfB+J/xEVTte/tveL/AAMyv/SkquXwfif8RFU7Xz7b1jPwMyv/AEoHLgDy9yAFV8GXuJ0WyH2Ge0vs0XlV/wC4qRBc+5aJ0+yitwf7WL/sblX0KkBk0AAH8F+5kcbtuPspNk/wWxX0pkjl/BfuI4/bcfZSbJfgtivpTA4hgAAAAAAAAADqt2P2ssNpztXamQYmvUpR1VpDHZfhqUfgVK9KVLFLmv4cmHq/G0SnItOCt06d3kQXNntyc02h4pNAbl5NOpHHaazzDZh6OlLldeEJxdWjf9bOHNB+yTJvmidYZFr/AGk03rbTOPhmGQZ7ltHMMvrwt+mUqsFOPd42fVeD6AfUgdPDuAH8HUGS5dqHS+aZHnODWY5NmWDqYPMMJNeriKFSDhUpv2OMpX6p9ejIp3F52d26fD5uHmefaSyLMNe7Q1sVOeX5tlVGWIxOXwbbjQxdKMeaMkunpVFwaSvyvoSzzwq0vSSlfrFxtKPfdNeK7mBAcxUaixbhWSpVYLllB+rytPut4e63fc/O4tMnEas4dtjNb42ritW7R6Sz7FVIKNSvi8io880r98kk/FnwmW8FXCllOY/VmB2A0VQq3vzyydTV/NKV0BDx2/2017ubqinkWgdG5zrLNalVRVDKMDOvyN9E5SiuWmvbNpW72jvHwZ9lN9a2pso3M4l4YLNszwcqeJyvQlCSxGGoVk7qeNl8Co14UY3hf4Uprodqsi0npzSuWU8v0tp/LdPYGEFGNLLcHTw8El4NQSuvYfQ03ZSUpO6l910f/kBShTVKl6OKSpx6U0lZKK7kvYl0PYAAAAObXaufacNb/wBd8t/hmRNav6pJ+HM/nJbXanZRjM07GvcWphIqSwONwGLr38KccQot/LNESSpdzl4R5n8bA8+86s9jwv6rZN9/9IuZfwmHOUy7zq12O/22mp+AuZfwmHAlNLuQAAeJq3xrdeyi4gr/APQfHf5htJ3GrHGy+XsmOISXj9Y2N/zEBC1l8OP/AMNfMWFX3/EUAAAAZK2bS/Pa7X/hdln0umY1MlbNfZb7Xfhdln0umBOoj/Lfzl3i/eWx7v8A5j+cu8X7wBSy5k/H+cqU+7j7wIOvEg79oDvl+H+cfTqxhdJtdE2Zm4jPtgG+H4f5z9PrHwejNLZ7rfcTJdI6Xy2rm+o83x9PB5dg6KvOtVm+WMV5Lq234JX8GBshwYcMGd8UnGJlWi6cK2B0dgXHH6qzaEG1hcHB35E+70lV2hBe1vuRMV0xpvJtJ7e5TpnTmW0MnyTK8HTwmAwWGjy08PShHljBedl3vvbbfia08HXC9kfC5wgZRo3Cwo43V2MjHG6rzSMFfGYxpXipd/o6XwYL2N+JtpRd4uzbXg5Kzff1A548S/ZtbB8QeNzDUeDyyW2O4lducs+yCjFUMVO1r4nC2UKni7x5Kjf3Zw63u7MXig2izHGYvKtLx3W0tS550830rF1a3o4/BdXDSaqwk115YekXtZLZLZR5rNOzQECnPdO59p3Op5bqHKsbkeYw+HhsywdTDVo+xxqRTP4qpu/wlL3O5PC1HobRurcHLDap0jlOo6E/hxzHLKeIv0t3yjcwNnfBJwoaiq+kzXYTR9Sd782HytYd39vJbqBC49HJK7TS82j63RGg9Ybh6/wem9EaazHVmeYiaVLBZXgpYmo/a1FNRXtlaKt1aRMDy7gK4Qsrx8cRhdgNLSqxvb6pwkqy+STaNhNFba6C2+ymlgtD6MybSOFUWnSyvL6dF/HKK5mvZcDQDs3uCnNOGLavOdY7iUqMd19U4aFKvg6MlUhk+Ci+ZYX0kek6rn69SUfVuoxXNycz6djx7reVgAHv7vaD8ePxuDy7I8bmGPxVHBYLC0J1sTiK81GnRhGLlKcm+iikm234JgcV+2i3GoZbwu7YbYYapRqYrO9Q1M3xdBSXPGhhabhCXmoynWkr+cfYRv38I3O45+IeHEl2geqda5ZXm9GZdFZTpeE5dfqOi2vTJeHpZ81S37O3gaY+AAAAAAAAAAAAAABdH4f7R/MycXw6fYE7NfgTlv0aBB3hbqn19SXcvY+9k4bh1nGXAXs04ptfWVlvVK6/4tD2AZoj3FS2/wCxl+5/mF/ZJftf5gKy+C/9vEiq9r79t5xP4E5Z89UlTyfX4Muqs3y9bfIRUu14mp9r5jrXtHR2VpX+9qsDl55e5AACqV1L70nUbLq3CLtj+COV/QqJBbpfDl7vZbv8bk6PZupCXCjtlyevbSOWXceqX+46QGTAW83rfBkv2v8AMUcko/dfuf5gL7Xa95HL7bf7JTY1+el8Wv8AKUSMujje0v3P8xHF7bTEKfFRsthlzfpeksRU6pK3NipL+SBxHAAAAAAAAAAFY95247Lnjey7bvEYfh33XziOC0nmeK59H5xjK1qOW4mcvWwlST+BTqS9aL8Jys/hI4jH64JxpwcknB9WndeFrO3mutwJ81Np4eDSsmrpF5GB4Pu1J1vsxgco2+3ko4ncXbShSjRwOY0582bZRCKtGKlJ2xFKK+4laX7L7k7/AOzXEtsrvzpKhmm1+vcsz+cor0mAliPRY+g33xqUJ2nH3pNAZ/BZTfqWb9a7un4dfcvlLwAB41JpTtdpvxVuny9/uA9j82Ihz8rTamu53SS9/wAxhjdniH2b2P0vXzXc/X+V6VhTg3TwdTE+kxld26Rhh6d6jk/JK3tXeR/uLbtUde7t4bNNA7HU8XtttziIyoYvN60vR5vmlN9HDni2sNBq/SD53frNK6Yb1cYfHvk2QcTW2vD7tBqSOY5pW1jldPXOd4DEKUMFh1jqXPgKU0/1WfdV7+SKUb8zlbsDSd/W6JuKbivC/Xq/Mgg6WzOeXbq6azadS8sNm2GxMp9E/Urxndy8H06295OvyfFwxmmsvxVN+khWwtOopR9ZNuC8QP6oLLrxjP8AcfzBtcvwZv8AafzAam8d+UTzzsjd/MuhFTnLSdarFNX606lOon/gEMWbTje927WdvZ1JvfExg1mPZ971YRxk+fRGZPrG3wcPKXfb2EIKV2k3+tSV/d4AWWv0Oq3Y8P8AquMl/wBhcy/hMOcqo/DXd8audVux8lCPa3S5k+uh8yjFO93+mYd9EBKdXcgW9O+0u79Z/MUv+xl+5/mAvNWON77UvxCfgPjf81G0jat1i7/e/wAxq7xqyhLso+IGHffRWOvdWStFAQsX9wUKz+49yKAAAAMk7N/ZabXfhdln0ymY2Mn7MtfnttrlNtL67sss72X/ABqn3gTpIfBn98/nKnnGd+b1ZfCfcvaXKXTukv2v8wFw77Lyt85S/sl+5/mLHK1WHRpefL/MBB84lFy9oXvov/5Azj6dVMgcGu/enuG7jh05udqbSFLWGV4elVwtWmrLE4BVUlLFYdv1XWhHmST71OSum0z4Pia69olvm+5PXubW6r/9bVMHATodod49tN7tpMJrLa3VuD1Vp+sknLD1P07CzcU3SrU361Kor9YySZlR9yIJ22e6+4uz+4tLVm2mss00Xn9Ky+qstxLpqqr/AAKsOsasPOE1KL8js9sF2yuaYOOHyXiJ0XHOFFKEtTaYpRpVn4OVXCytF+D/AEtxXf6vcBISBrTtXxd8OO8dGgtC7sZDjsfXipfmZjMWsJjIN98XSq8rb6dVG5sfTqwm+aDi6bjeEkujXvv1A9wUTT7mmVAAFHKMesmkvawKg/NiZUlg6kqs4woqPNKo7csUurbb6Lu7zS/fjjz4bdh8uxeGz7XWG1RqWlFeh09pyrHHYuo13KUk/R0/fOV15AbqV5xp4GtUnKEYRg5SlUdopLvb9hHr7STtCcq1JpzPOHvYnPI5jktfnwustUYOrzU8XHmvLBYaa+HB2aqVO6SvCN1zM1H4ru0j3k4jIZtpTIqs9strK3qPI8urXxWPg+lsXiOjnFrvpRUYPucX3nOGTlJO8nJ3bV3zN372wPNyu3e7k/GRQAAAAAAAAAAAAAAAqui6t2fk+4+moay1Zg8JToYbVOc4elCPLCnSzWrCMV4JJS6HzA8QPrvr61ou7WOer+y1d/yyn19638NZZ7b2ZtX/ACz5IAfVvXGtJpKWr88lJ9E5ZtX/ACj+FmGZY/Ncf9VZjjcRj8Q4qPpcTiJVZWXheTbsfhTaXR2AAAAVTs/D3s+lw2r9V4WhGlhtUZxQpRSUY08yrRiku5JKR8yAPrJ631ly9dXZ3/fav+UWR1vrPm9XV+eX9mbVvyj5YAfWvXOtVF31hntv671/yj+HmGb5pm9aFXNMyxWZVYK0Z4vFTqyS8k5Nn84AAAAAAAAAAAAF35gAD+xlOcZnkWbYbM8mzHE5VmNGSnSxeDrTpVabT71KLR/HAG9OhO0W4vNAZbh8Bl26+KzvB05pwpahwdLHpWXweaabt8ZsXgO2P4l8Ll9OljNOaLzGsl69WWW1abk/O0ZWORfgAOt2Z9sXxO4vAzp4HIdFZVVkrRqxyqpVcfbaU2vlMB657SPjB17k0sBj93cRp/CzUlOnprAUctk013OdOKk18dzQ1Np3Ts/YVu33tv3sD+3nefZ3qDP6uaZ9m2NzvM6z56mLx2KnXqTb8eaTbP4j5ut+4oAKxbUlb/yPp6GsdXYaiqeH1PnFCC6KNPNK0V8ikfLgD61671ol11dnq92b1/45l0dfa57lrTP7eX5s1/yz5AAfTYvWGrMbhp08ZqTNsVSmuWcK+aVpxkvJpy6nzXWzaVl4plAAXf3XP35fmOPyzMI4vLcZiMDXs0quGrypTXulFpn4B4AfXrXWuIxaWsM9gvBLN6/5ZY9d64aaess9a8f996/5Z8mLLyA+o+vfWN+urs7f9lq35R4V9WanxeEqYfF6kzXFYepFxnSrZlVlGS8mnKzR88Lu9/EAAAAAAHrTqSp1YTpzlCcGpRnTupRa7uvmeQ8LeAH10dc60jTjGOrs9hZfBWbV0l/hlHrvWt+usc+T/rxW/KPkvEWQH1T11rRy/wDxjnnx5vW/KKfXrrGablqzOp27+bNq3X/CPlgB6161TEYupXrVJ1as5OU5zm5Sk33tt9WeQAAXkuqAA96GIqUq3pabcKkWmpwfLJP3rqviM+6E4qeIXbVUoaK3i1VkeEppRjhYZtUq0LJ3S5Kjasa9+IA6Raf7VfjGyV0VX11lWoKMOjpZpp2hNzXtnFKX75kih2xPE9SopVcj0ViGul5ZRUjb5JnJXwt4ADrhU7Yvicq0JQhp3RMJPxWVVXb4nOxi/Uvao8Y2oeaGG11lml8N9zDJsgoU2vZzTTkc3wBnnX/Exv7uhF0tebvap1Jh23J4fE5tUjQT8lCDUbewwZUqTqznOUpT5neTnK8m/NvvZ4+FvAeIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAB//2Q==" width="44" height="44" alt="" aria-hidden="true">
+                    </a>
                     <div class="tabs-left">
                         <button class="tab active" onclick="switchTab(0)">我的频道</button>
-                        <button class="tab" onclick="switchTab(1)">源管理</button>
-                        <button class="tab" onclick="switchTab(2)">设置</button>
+                        <button class="tab" onclick="switchTab(1)">源管理<span class="attention-dot" data-alert-where="extractors" role="img" hidden></span></button>
+                        <button class="tab" onclick="switchTab(2)">设置<span class="attention-dot" data-alert-where="epg system" role="img" hidden></span></button>
                         <button class="tab" onclick="switchTab(3)">关于我们</button>
                     </div>
                     <div class="tabs-right">
@@ -3982,19 +4026,10 @@
                     </div>
                 </div>
 
-                <!-- 搬家指路。放在全局 header 里而不是某一页，是因为找不到东西的人可能停在
-                     任何子页面上（「设置」下面就有 5 个）。默认显示，点「知道了」写
-                     localStorage 后不再出现。
-                     键名带版本号：将来若要再公告一次，换个键即可，不会被这次的已读状态吃掉。
-                     **临时性质**——约两个版本（v3.19 前后）没人再问就把这一段和它的 CSS、
-                     dismissMovedNotice()、以及 loadData 里的那次调用一起摘掉，别让它长住。 -->
-                <div class="moved-notice" id="movedNotice" style="display:none;">
-                    <span class="moved-notice-text">
-                        <strong>咪咕账号 / 画质</strong>、<strong>内容开关</strong>、<strong>源模块</strong>已从「设置」移到
-                        <a href="javascript:void(0)" onclick="switchTab(1)">源管理</a> 页。
-                    </span>
-                    <button class="moved-notice-close" onclick="dismissMovedNotice()" title="不再显示">知道了</button>
-                </div>
+                <!-- 需要处理的提醒（登录凭证失效、模块抓取失败、EPG 源失败、没设访问密码等，由 renderAlerts()
+                     汇总）。放在全局 header 里，停在哪个页面都看得到；问题解决就自动消失，所以不给「知道了」——
+                     问题还在就该一直提醒。header 是固定的，所以不论几条都只占一行，逐条说明在「提醒列表」弹窗里。 -->
+                <div class="alert-bar" id="alertBar" hidden></div>
             </div>
         </div>
 
@@ -4033,15 +4068,16 @@
                     </div>
                     <div class="my-playlist-middle">
                         <div class="my-playlist-detail-header" id="detailHeader" style="display: none;">
-                            <div class="my-playlist-detail-title" id="detailTitle"></div>
+                            <div class="my-playlist-detail-info">
+                                <div class="my-playlist-detail-title" id="detailTitle"></div>
+                                <div class="ch-status-legend" style="display: none;">
+                                    <b>配对状态</b>
+                                    <span class="seg"><span class="dot ok"></span><span class="dot ok"></span> 左=节目单　右=台标</span>
+                                    <span class="seg"><span class="dot ok"></span> 绿 已匹配</span>
+                                    <span class="seg"><span class="dot no"></span> 红 未匹配（点开频道详情可设别名修正）</span>
+                                </div>
+                            </div>
                             <div class="my-playlist-detail-actions" id="detailActions"></div>
-                        </div>
-                        <div class="ch-status-legend">
-                            <b>配对状态</b>
-                            <span class="seg"><span class="dot ok"></span><span class="dot ok"></span> 左=节目单　右=台标</span>
-                            <span class="seg"><span class="dot ok"></span> 绿 已匹配</span>
-                            <span class="seg"><span class="dot no"></span> 红 未匹配（点开频道详情可设别名修正）</span>
-                            <span class="seg ch-status-legend-tip" title="点击频道名称可查看详情，并一键用 VLC / IINA / PotPlayer 打开播放">点频道名看详情</span>
                         </div>
                         <div class="my-playlist-groups" id="myPlaylistGroups"></div>
                     </div>
@@ -4057,16 +4093,9 @@
             <!-- 源管理：平台的全部内容来源集中在这一页，并像设置页一样用二级标签分区。
                  首次默认展示核心的「内置抓取模块」，同时记住用户上次停留的分类。 -->
             <div class="panel sources-panel">
-                <div class="page-intro">
-                    <div>
-                        <span class="page-kicker">SOURCE LIBRARY</span>
-                        <h2>内容源管理</h2>
-                        <p>在一个地方整理自定义源、抓取模块与内置内容。</p>
-                    </div>
-                </div>
                 <div class="source-subtabs" role="tablist" aria-label="源管理分类">
                     <button type="button" class="mode-switch-btn" role="tab" aria-selected="false" aria-controls="sourceSub0" onclick="switchSourceTab(0)">自定义源 <span class="source-tab-count" id="sourceTabExternalCount"></span></button>
-                    <button type="button" class="mode-switch-btn active" role="tab" aria-selected="true" aria-controls="sourceSub1" onclick="switchSourceTab(1)">内置抓取模块 <span class="source-tab-count" id="sourceTabExtractorCount"></span></button>
+                    <button type="button" class="mode-switch-btn active" role="tab" aria-selected="true" aria-controls="sourceSub1" onclick="switchSourceTab(1)">内置抓取模块 <span class="source-tab-count" id="sourceTabExtractorCount"></span><span class="attention-dot" data-alert-where="extractors" role="img" hidden></span></button>
                     <button type="button" class="mode-switch-btn" role="tab" aria-selected="false" aria-controls="sourceSub2" onclick="switchSourceTab(2)">内置源 <span class="source-tab-count" id="sourceTabBuiltInCount"></span></button>
                 </div>
 
@@ -4173,19 +4202,12 @@
             </div>
 
             <div class="panel settings-panel">
-                <div class="page-intro">
-                    <div>
-                        <span class="page-kicker">PREFERENCES</span>
-                        <h2>系统设置</h2>
-                        <p>管理服务参数、命名规则、节目单与用户访问。</p>
-                    </div>
-                </div>
                 <!-- 设置页二级标签（issue #72）：功能卡片分区，免长页滚动 -->
                 <div class="settings-subtabs">
-                    <button class="mode-switch-btn active" onclick="switchSettingsTab(0)">系统配置</button>
+                    <button class="mode-switch-btn active" onclick="switchSettingsTab(0)">系统配置<span class="attention-dot" data-alert-where="system" role="img" hidden></span></button>
                     <button class="mode-switch-btn" onclick="switchSettingsTab(1)">频道别名</button>
                     <button class="mode-switch-btn" onclick="switchSettingsTab(2)">自动分组</button>
-                    <button class="mode-switch-btn" onclick="switchSettingsTab(3)">EPG 聚合</button>
+                    <button class="mode-switch-btn" onclick="switchSettingsTab(3)">EPG 聚合<span class="attention-dot" data-alert-where="epg" role="img" hidden></span></button>
                     <button class="mode-switch-btn" onclick="switchSettingsTab(4)">用户管理</button>
                 </div>
 
@@ -4374,11 +4396,6 @@
             <!-- 关于我们面板 -->
             <div class="panel about-panel">
                 <div class="about-page">
-                    <div class="page-intro about-hero">
-                        <h2>IPTV 管理系统</h2>
-                        <p>基于 Node.js 的 IPTV 直播源管理和分发系统</p>
-                    </div>
-                    
                     <div class="about-info-card">
                         <div class="about-version-card">
                             <div class="about-card-heading">
@@ -4391,7 +4408,7 @@
                                 <strong>当前版本</strong>
                             </div>
                             <div class="about-version-body">
-                                <span id="versionText">v4.29.0</span>
+                                <span id="versionText">v4.31.0</span>
                                 <button class="btn btn-sm" onclick="checkUpdate()" id="checkUpdateBtn">检查更新</button>
                             </div>
                             <div id="updateInfo" class="about-update-info" style="display: none;"></div>
@@ -4654,6 +4671,9 @@
             if (h.consecutiveFailures) extra += ' · 连续失败 ' + h.consecutiveFailures + ' 次';
             let line = `<span style="color:${color};">● ${escapeHtml(text)}</span>` +
                 `<span style="color:#888;"> · ${escapeHtml(extractorChannelSummary(h))}${escapeHtml(extra)} · 上次成功 ${escapeHtml(when)}</span>`;
+            if (h.credentialRejected) {
+                line += `<div style="color:#ff4d4f; font-size:12px; margin-top:4px; word-break:break-all;">⚠️ ${escapeHtml(h.credentialRejected)}</div>`;
+            }
             if (h.lastError) {
                 line += `<div style="color:#ff4d4f; font-size:12px; margin-top:4px; word-break:break-all;">${escapeHtml(h.lastError)}</div>`;
             }
@@ -4840,9 +4860,12 @@
         function extractorHelperHtml(key, secretsSet, config, health) {
             if (key === 'fengshows-bookmarklet') {
                 const configured = !!secretsSet.token;
+                // 刷新检查或播放时官网回「账号已过期」，服务端会改走游客 480p 并在这里亮出来
+                const rejected = configured && !!(health && health.credentialRejected);
+                const badge = rejected ? '⚠️ Token 已失效（已改用游客 480p，请重新获取）' : (configured ? '已配置 Token · 自动请求 720p' : '访客模式 · 480p');
                 return `<div class="bookmarklet-section" style="margin:0 0 12px;">
                     <div class="bookmarklet-title"><span>凤凰秀账号</span>
-                        <span class="login-state-badge ${configured ? 'on' : 'off'}">${configured ? '已配置 Token · 自动请求 720p' : '访客模式 · 480p'}</span>
+                        <span class="login-state-badge ${configured && !rejected ? 'on' : 'off'}">${badge}</span>
                     </div>
                     <div class="bookmarklet-actions"><a id="fengshowsBookmarklet" class="bookmarklet-link" draggable="true">获取凤凰秀 Token</a>
                         <a href="https://www.fengshows.com/live" target="_blank" rel="noreferrer">打开凤凰秀官网 ↗</a></div>
@@ -4854,10 +4877,11 @@
                 // 和 Token（secret，只回传有没有值）都填了；画质后果直接写在徽标上——
                 // 那才是用户填账号的理由。
                 const miguLoggedIn = !!(config && config.userId) && !!(secretsSet && secretsSet.token);
+                const miguRejected = miguLoggedIn && !!(health && health.credentialRejected);
                 return `<div class="bookmarklet-section" style="margin:0 0 12px;">
                     <div class="bookmarklet-title">
                         <span>咪咕账号</span>
-                        <span class="login-state-badge ${miguLoggedIn ? 'on' : 'off'}">${miguLoggedIn ? '✅ 已登录（按账号档位解锁画质）' : '未登录（游客最高 540p）'}</span>
+                        <span class="login-state-badge ${miguLoggedIn && !miguRejected ? 'on' : 'off'}">${miguRejected ? '⚠️ Token 已失效（已按游客播放，最高 540p，请重新获取）' : (miguLoggedIn ? '✅ 已登录（按账号档位解锁画质）' : '未登录（游客最高 540p）')}</span>
                     </div>
                     <div class="bookmarklet-actions">
                         <a id="miguBookmarklet" class="bookmarklet-link" draggable="true">获取咪咕账号</a>
@@ -4870,13 +4894,14 @@
                 // 「已设置，留空则不修改」—— 藏在一个看起来空空如也的输入框里，
                 // 用户扫码成功后回到表单，完全看不出到底成没成。
                 const loggedIn = !!(secretsSet && secretsSet.sessdata);
+                const rejected = loggedIn && !!(health && health.credentialRejected);
                 // 两个入口并排，与咪咕的形态对齐：主按钮做常规操作，「?」给说明。
                 // 这里的「?」不是说明而是备用方案——B 站的 SESSDATA 是 HttpOnly，
                 // 咪咕那种「书签读 document.cookie」的招读不到，只能扫码或手动翻 DevTools。
                 return `<div class="bookmarklet-section" style="margin:0 0 12px;">
                     <div class="bookmarklet-title">
                         <span>B 站登录态</span>
-                        <span id="biliLoginState" class="login-state-badge ${loggedIn ? 'on' : 'off'}">${loggedIn ? '✅ 已登录（画质可达原画）' : '未登录（画质封顶超清）'}</span>
+                        <span id="biliLoginState" class="login-state-badge ${loggedIn && !rejected ? 'on' : 'off'}">${rejected ? '⚠️ 登录已失效（画质已降到超清，请重新扫码）' : (loggedIn ? '✅ 已登录（画质可达原画）' : '未登录（画质封顶超清）')}</span>
                     </div>
                     <div class="bookmarklet-actions">
                         <button class="btn btn-sm btn-primary" onclick="openBiliQrLogin()">📱 ${loggedIn ? '重新扫码登录' : '扫码登录'}</button>
@@ -4910,10 +4935,12 @@
             }
             if (key === 'beijing-cookie') {
                 const loggedIn = !!(secretsSet && secretsSet.cookie);
+                const rejected = loggedIn && !!(health && health.credentialRejected);
+                const badge = rejected ? '⚠️ Cookie 已失效（9 个电视台暂时播不了，请重新导入）' : (loggedIn ? '✅ 已导入 Cookie（启用 9 个电视台）' : '未登录（仍可看公开直播）');
                 return `<div class="bookmarklet-section" style="margin:0 0 12px;">
                     <div class="bookmarklet-title">
                         <span>北京时间登录态</span>
-                        <span class="login-state-badge ${loggedIn ? 'on' : 'off'}">${loggedIn ? '✅ 已导入 Cookie（启用 9 个电视台）' : '未登录（仍可看公开直播）'}</span>
+                        <span class="login-state-badge ${loggedIn && !rejected ? 'on' : 'off'}">${badge}</span>
                     </div>
                     <div class="bookmarklet-actions">
                         <a href="https://www.btime.com/btv/btvsy_index" target="_blank" rel="noreferrer">打开北京时间官网 ↗</a>
@@ -4923,9 +4950,9 @@
             }
             if (key === 'sichuan-token') {
                 const loggedIn = !!(secretsSet && secretsSet.accessToken);
-                // 模块每轮刷新会拿 Token 试换一次签，官网不认时写进健康警告；徽标跟着变，
+                // 模块每轮刷新会拿 Token 试换一次签，官网不认时记进 health.credentialRejected；徽标跟着变，
                 // 否则失效的 Token 仍显示「已配置」，要等播放才报错（#150）。
-                const rejected = loggedIn && ((health && health.warnings) || []).some(w => String(w).includes('官网不认当前 Token'));
+                const rejected = loggedIn && !!(health && health.credentialRejected);
                 const badge = rejected ? '⚠️ Token 已失效（请重新获取）' : (loggedIn ? '✅ 已配置 Token（启用 9 个频道）' : '未登录（频道暂不加入）');
                 return `<div class="bookmarklet-section" style="margin:0 0 12px;">
                     <div class="bookmarklet-title">
@@ -5058,6 +5085,27 @@
         // 换筛选或重新进这一页才消失，免得卡片从鼠标底下抽走、后面整片补位。
         const extractorFilterHold = new Set();
 
+        // 抓取模块按分类切换（作者 10-06）：几类模块一次只显示一类，免得一路往下滑过别的分类；
+        // 记在本机浏览器里，下次进来还停在上次看的那一类。
+        let extractorCategory = 'account';
+        try {
+            const saved = localStorage.getItem('iptv-extractor-category');
+            if (saved) extractorCategory = saved;
+        } catch (e) {
+            // 存储不可用只会失去「记住分类」，默认看第一类
+        }
+
+        function setExtractorCategory(id, render = true) {
+            extractorCategory = String(id || 'account');
+            extractorFilterHold.clear();
+            try {
+                localStorage.setItem('iptv-extractor-category', extractorCategory);
+            } catch (e) {
+                // 同上，不影响本次切换
+            }
+            if (render) renderExtractors();
+        }
+
         function setExtractorFilter(value) {
             extractorFilter = ['on', 'off'].includes(value) ? value : 'all';
             extractorFilterHold.clear();
@@ -5085,6 +5133,148 @@
                 </button>`).join('') : '';
         }
 
+        // ===== 提醒中心 =====
+        // 后台各处「现在确实有问题、用户能处理」的事汇总到页面顶部一个入口：顶部不论几条都只占一行，
+        // 逐条说明和处理按钮在「需要处理的提醒」弹窗里。纯说明性的提示（环境变量覆盖、空白模式）
+        // 不收；各页原位的提示照旧保留，这里是汇总不是搬走。新增一类提醒只需在 collectAlerts 里加一段。
+        let usersPassSet = true;   // /api/users 回传的 passSet，loadUsers 回填
+        let currentAlerts = [];    // 本次渲染的提醒，按钮按下标取
+
+        /**
+         * 每条：{ level: 'error'|'warning', title: 顶部一行用的短句, text: 列表里的说明,
+         *        action: 按钮文字, run: 点按钮做什么, where: 红点挂在哪（对应 data-alert-where） }
+         */
+        function collectAlerts() {
+            const alerts = [];
+            if (extractorsState && extractorsState.corrupt) {
+                alerts.push({ level: 'error', where: 'extractors', title: '抓取模块配置文件损坏', action: '查看',
+                    text: '配置文件损坏，已保留原文件并另存 .corrupt 副本；修复前模块的所有改动都会被拒绝，以免覆盖原数据。',
+                    run: () => openAlertTarget('extractors') });
+            }
+            for (const m of (extractorsState && extractorsState.modules) || []) {
+                if (!m.enabled) continue;
+                const h = m.health || {};
+                if (h.credentialRejected) {
+                    alerts.push({ level: 'error', where: 'extractors', title: `${m.name}登录凭证已失效`, action: '去更新',
+                        text: h.credentialRejected, run: () => openAlertTarget('module', m.id) });
+                } else if (h.status === 'failed' || h.status === 'risk') {
+                    const kept = h.usingCachedChannels ? `；暂时沿用上次抓到的 ${h.channelCount || 0} 个频道` : '';
+                    alerts.push({ level: 'error', where: 'extractors', title: `${m.name}${h.status === 'risk' ? '被风控' : '抓取失败'}`, action: '查看',
+                        text: `${h.lastError || '最近一次抓取没有成功'}${kept}。会自动重试；长期失败又用不到的话，可以关掉这个模块。`,
+                        run: () => openAlertTarget('module', m.id) });
+                }
+            }
+            if (epgConfig && epgConfig.enabled !== false) {
+                for (const src of epgConfig.sources || []) {
+                    if (src.enabled === false) continue;
+                    const name = src.name || '未命名';
+                    if (epgLegacyUrls.includes(String(src.url || '').trim())) {
+                        alerts.push({ level: 'warning', where: 'epg', title: `EPG 源「${name}」已停用`, action: '去设置',
+                            text: '这是停用的老默认源：51zmt 只剩央视和卫视，erw 已停止免费下载。节目单现由咪咕和各模块的官方接口提供，这条留着只会挂上过期节目单，建议删掉。',
+                            run: () => openAlertTarget('epg') });
+                    } else if (typeof src.lastStatus === 'string' && src.lastStatus.indexOf('失败') >= 0) {
+                        alerts.push({ level: 'error', where: 'epg', title: `EPG 源「${name}」抓取失败`, action: '去设置',
+                            text: src.lastStatus, run: () => openAlertTarget('epg') });
+                    }
+                }
+            }
+            // 只在已经加了一人一源用户时提醒：没加用户、不设密码是很多局域网用户的正常用法，不该常亮
+            if (!usersPassSet && ((usersConfig && usersConfig.users) || []).length) {
+                alerts.push({ level: 'warning', where: 'system', title: '没设访问密码，一人一源没生效', action: '去设置',
+                    text: '已经添加了一人一源用户，但没设访问密码：去掉令牌的地址谁都能直接用，后台也没上锁。设置访问密码后，已发出去的 /u/<令牌>/… 链接不受影响。',
+                    run: () => openAlertTarget('password') });
+            }
+            const rank = a => a.level === 'error' ? 0 : 1;
+            return alerts.sort((a, b) => rank(a) - rank(b));
+        }
+
+        /** 重算全部提醒：顶部提醒条、标签红点、提醒列表。任何一份相关数据变了都调它。 */
+        function renderAlerts() {
+            currentAlerts = collectAlerts();
+            const errors = currentAlerts.filter(a => a.level === 'error').length;
+
+            // 红点挂在问题所在的标签上（顶层标签和二级标签都标），鼠标停上去看是哪几条
+            document.querySelectorAll('[data-alert-where]').forEach(dot => {
+                const wheres = dot.dataset.alertWhere.split(' ');
+                const hits = currentAlerts.filter(a => wheres.includes(a.where));
+                dot.hidden = !hits.length;
+                dot.classList.toggle('is-warning', hits.length > 0 && hits.every(a => a.level === 'warning'));
+                const label = hits.map(a => a.title).join('、');
+                dot.title = label;
+                dot.setAttribute('aria-label', label);
+            });
+
+            const bar = document.getElementById('alertBar');
+            if (bar) {
+                bar.hidden = !currentAlerts.length;
+                bar.classList.toggle('is-warning', !errors);
+                const summary = currentAlerts.length === 1
+                    ? `<strong>${escapeHtml(currentAlerts[0].title)}</strong>`
+                    : `<strong>${currentAlerts.length} 条需要处理的提醒</strong>：${escapeHtml(currentAlerts.map(a => a.title).join('、'))}`;
+                bar.innerHTML = currentAlerts.length ? `<span class="alert-bar-text">⚠️ ${summary}</span>
+                    <button type="button" class="alert-bar-btn" onclick="openAlertCenter()">查看 ›</button>` : '';
+            }
+
+            const list = document.getElementById('alertCenterList');
+            if (list) {
+                list.innerHTML = currentAlerts.length ? currentAlerts.map((a, i) => `<div class="alert-item${a.level === 'warning' ? ' is-warning' : ''}">
+                    <strong class="alert-item-title">${escapeHtml(a.title)}</strong>
+                    <div class="alert-item-text">${escapeHtml(a.text)}</div>
+                    <button type="button" class="alert-bar-btn" onclick="runAlert(${i})">${escapeHtml(a.action)} ›</button>
+                </div>`).join('') : '<div class="system-config-hint" style="margin:0;">没有需要处理的提醒了。</div>';
+            }
+        }
+
+        function runAlert(i) {
+            const alert = currentAlerts[i];
+            if (alert) alert.run();
+        }
+
+        function openAlertCenter() {
+            renderAlerts();
+            const modal = document.getElementById('alertCenterModal');
+            if (!modal) return;
+            modal.style.display = 'block';
+            modal.setAttribute('aria-hidden', 'false');
+            setTimeout(() => {
+                const closeButton = modal.querySelector('.extractor-modal-close');
+                if (closeButton) closeButton.focus();
+            }, 0);
+        }
+
+        function closeAlertCenter() {
+            const modal = document.getElementById('alertCenterModal');
+            if (!modal) return;
+            modal.style.display = 'none';
+            modal.setAttribute('aria-hidden', 'true');
+        }
+
+        /** 提醒列表里的按钮：关掉列表，从任何页面直接跳到能处理这件事的地方。 */
+        async function openAlertTarget(kind, moduleId) {
+            closeAlertCenter();
+            if (kind === 'module' || kind === 'extractors') {
+                await switchTab(1);
+                switchSourceTab(1, false);
+                if (kind === 'module') {
+                    // 先切到模块所在的分类，关掉详情后看到的就是它那张卡片
+                    const target = ((extractorsState && extractorsState.modules) || []).find(m => m.id === moduleId);
+                    if (target) setExtractorCategory(target.category || 'standard', false);
+                    selectExtractorModule(moduleId);
+                }
+                return;
+            }
+            await switchTab(2);
+            if (kind === 'epg') {
+                switchSettingsTab(3);
+                const list = document.getElementById('epgSourceList');
+                if (list) list.scrollIntoView({ block: 'center' });
+            } else if (kind === 'password') {
+                switchSettingsTab(0);
+                const input = document.getElementById('sysPass');
+                if (input) { input.scrollIntoView({ block: 'center' }); input.focus(); }
+            }
+        }
+
         function renderExtractors() {
             renderExtractorNotice();
             renderContentFlags();
@@ -5097,6 +5287,7 @@
                 const enabledCount = modules.filter(module => module.enabled).length;
                 tabCount.textContent = modules.length ? `${enabledCount}/${modules.length}` : '0';
             }
+            renderAlerts();
             renderExtractorFilter(modules);
             if (!modules.length) {
                 box.innerHTML = '<div class="system-config-hint" style="margin:0;">本版本没有内置任何抓取模块。</div>';
@@ -5112,9 +5303,10 @@
             const categories = [
                 {
                     id: 'account',
-                    title: '🔐 账号与授权',
+                    title: '账号与授权',
                     badge: '账号相关',
-                    description: '部分频道或更高画质需要登录；未配置账号时，仍按各模块说明提供游客或公开内容。',
+                    // 说明里要标黄的部分写成 { mark: '…' }，渲染时转义后包进 <mark>
+                    description: ['部分频道或更高画质', { mark: '需要登录' }, '；未配置账号时，仍按各模块说明提供游客或公开内容。'],
                 },
                 {
                     id: 'live',
@@ -5128,6 +5320,12 @@
                     badge: '免账号',
                     description: '无需填写账号凭据，启用后即可自动抓取官方公开频道。',
                 },
+                {
+                    id: 'overseas',
+                    title: '海外',
+                    badge: '海外',
+                    description: ['面向大陆以外的频道，默认关闭，需要时手动打开。', { mark: '能不能看取决于网络：海外频道由播放器直连，看播放设备；澳门等后续其他独立模块还要部署的机器能连到大陆以外。' }],
+                },
             ];
 
             const moduleCardHtml = (m, category) => {
@@ -5136,6 +5334,7 @@
                 const hasEditableConfig = extractorHasEditableConfig(m);
                 const classes = ['source-card'];
                 if (!m.enabled) classes.push('is-off');
+                if (m.enabled && h.credentialRejected) classes.push('needs-attention');
                 if (m.id === selectedExtractorId) classes.push('active');
                 return `
                 <div class="${classes.join(' ')}" data-extractor-id="${escapeHtml(m.id)}"
@@ -5152,7 +5351,9 @@
                     <div class="source-card-desc">${escapeHtml(m.description || '')}</div>
                     <div class="source-card-foot">
                         ${m.enabled
-                            ? `<span title="上次成功抓取：${escapeHtml(when)}">${extractorCardStatus(h)} · ${extractorChannelSummary(h)}</span>`
+                            ? `<span title="上次成功抓取：${escapeHtml(when)}">${h.credentialRejected
+                                ? `<span class="credential-flag" title="${escapeHtml(h.credentialRejected)}">⚠️ 登录凭证已失效</span>`
+                                : extractorCardStatus(h)} · ${extractorChannelSummary(h)}</span>`
                             : '<span class="module-off-label">○ 已关闭</span>'}
                         <span class="card-open-hint">${hasEditableConfig ? '配置 ›' : '详情 ›'}</span>
                     </div>
@@ -5166,22 +5367,37 @@
                 || extractorFilterHold.has(m.id);
             const shown = modules.filter(visible);
 
-            box.innerHTML = shown.length ? categories.map(category => {
-                const categoryModules = shown.filter(m => (m.category || 'standard') === category.id);
-                if (!categoryModules.length) return '';
-                return `<section class="source-category" aria-labelledby="extractor-category-${escapeHtml(category.id)}">
+            // 分类按钮：数量跟着上面的开关筛选走；某类里有模块抓取失败或凭证失效，按钮上挂红点
+            const categoryOf = m => m.category || 'standard';
+            const present = categories.filter(category => modules.some(m => categoryOf(m) === category.id));
+            const active = present.find(category => category.id === extractorCategory) || present[0];
+            const needsAttention = m => {
+                const h = m.health || {};
+                return m.enabled && (!!h.credentialRejected || h.status === 'failed' || h.status === 'risk');
+            };
+            const categoryBar = present.map(category => {
+                const count = shown.filter(m => categoryOf(m) === category.id).length;
+                const alerting = modules.some(m => categoryOf(m) === category.id && needsAttention(m));
+                const on = category.id === active.id;
+                return `<button type="button" role="tab" class="extractor-category-btn${on ? ' active' : ''}" aria-selected="${on}"
+                                onclick="setExtractorCategory('${escapeHtml(category.id)}')">
+                    ${escapeHtml(category.title)}<span class="extractor-filter-count">${count}</span>${alerting
+                        ? '<span class="attention-dot" role="img" aria-label="有模块需要处理"></span>' : ''}
+                </button>`;
+            }).join('');
+            const activeModules = shown.filter(m => categoryOf(m) === active.id);
+            box.innerHTML = `<div class="extractor-category-bar" role="tablist" aria-label="模块分类">${categoryBar}</div>
+                <section class="source-category" role="tabpanel">
                     <div class="source-category-head">
-                        <div class="source-category-title" id="extractor-category-${escapeHtml(category.id)}">${escapeHtml(category.title)}</div>
-                        <span class="source-category-count">${categoryModules.length} 个</span>
-                        <div class="source-category-desc">${escapeHtml(category.description)}</div>
+                        <div class="source-category-desc">${[].concat(active.description).map(part => typeof part === 'string'
+                            ? escapeHtml(part) : `<mark class="category-note">${escapeHtml(part.mark)}</mark>`).join('')}</div>
                     </div>
-                    <div class="source-grid">
-                        ${categoryModules.map(m => moduleCardHtml(m, category)).join('')}
-                    </div>
+                    ${activeModules.length
+                        ? `<div class="source-grid">${activeModules.map(m => moduleCardHtml(m, active)).join('')}</div>`
+                        : `<div class="extractor-filter-empty">${extractorFilter === 'on'
+                            ? '这一类的模块都关着。切到「已关闭」或「全部」，勾选「启用」即可打开。'
+                            : '这一类没有关闭的模块。'}</div>`}
                 </section>`;
-            }).join('') : `<div class="extractor-filter-empty">${extractorFilter === 'on'
-                ? '所有模块都已关闭。切到「已关闭」或「全部」，勾选「启用」即可打开。'
-                : '没有关闭的模块。'}</div>`;
 
             renderExtractorDetail();
         }
@@ -5751,6 +5967,7 @@
         }
 
         function renderEpgSources() {
+            renderAlerts();   // EPG 源的失败 / 停用老源提醒
             const box = document.getElementById('epgSourceList');
             if (!box) return;
             const cb = document.getElementById('epgEnabled');
@@ -5818,7 +6035,7 @@
 
         async function toggleEpgSource(i, enabled) {
             const r = await epgPost({ action: 'update', index: i, fields: { enabled } });
-            if (r.success) { epgConfig = r.data; toastSaved(); } else { showStatus(r.message || '操作失败', 'error'); loadEpgSources(); }
+            if (r.success) { epgConfig = r.data; renderAlerts(); toastSaved(); } else { showStatus(r.message || '操作失败', 'error'); loadEpgSources(); }
         }
 
         async function updateEpgSource(i, fields) {
@@ -5861,6 +6078,7 @@
                     if (!Array.isArray(usersConfig.users)) usersConfig.users = [];
                     const passWarn = document.getElementById('userPassWarning');
                     if (passWarn) passWarn.style.display = payload.passSet === false ? '' : 'none';
+                    usersPassSet = payload.passSet !== false;
                     renderUsers();
                     fillUserProfileSelect(document.getElementById('userNewProfile'), '');
                 }
@@ -5888,6 +6106,7 @@
         }
 
         function renderUsers() {
+            renderAlerts();   // 用户增删会改变「没设访问密码」那条提醒
             const box = document.getElementById('userList');
             if (!box) return;
             const users = usersConfig.users || [];
@@ -6467,7 +6686,6 @@
                 systemConfig = await systemRes.json();
                 console.log('系统配置加载成功');
                 renderSubscribeBar();  // 配置加载后重渲染订阅栏，让「公网地址」按钮按 mhost 出现（issue #62）
-                initMovedNotice();     // 搬家指路条（临时，见 markup 处注释）
 
                 // 加载 EPG 聚合源配置（issue #38）；失败不影响其余加载
                 loadEpgSources();
@@ -7247,6 +7465,16 @@
                             ${channelInfo}
                         </div>
                         <div class="external-field">
+                            <label>User-Agent（可选）</label>
+                            <input type="text" value="${escapeHtml(source.userAgent || '')}" oninput="updateExternalField(${index}, 'userAgent', this.value)" placeholder="留空用默认；按订阅提供方的要求填，例：okhttp/3.15">
+                            <div class="form-hint">${source.localImport ? '本地导入不联网，这里的 UA 只在勾选下方「播放时也带上」后用于播放。' : '有些订阅要特定 UA 才返回列表，填了就用它拉取；改完点「导入并保存」重新拉一次。'}</div>
+                            <label style="margin-top: 6px;">
+                                <input type="checkbox" ${source.playWithUserAgent === true ? 'checked' : ''} onchange="updateExternalField(${index}, 'playWithUserAgent', this.checked)">
+                                播放时也带上这个 UA
+                            </label>
+                            <div class="form-hint">勾选后，本源频道在 m3u 里都带上 <code>#EXTVLCOPT:http-user-agent</code>，需要播放器认这一行（VLC、Kodi 等）；订阅里已自带 UA 的频道保持不变。带请求头的频道 TXT 格式放不下，会从 TXT 订阅里跳过。</div>
+                        </div>
+                        <div class="external-field">
                             <label>默认分组</label>
                             ${renderGroupSelect(index, source.group || '未分组')}
                             <div class="form-hint">订阅里<strong>没自带分组</strong>的频道统一归到这个分组（频道自带分组的保持不变）。保持「未分组」则不归类，可在「关键字自动分组」里按频道名细分。</div>
@@ -7971,26 +8199,6 @@
         }
 
         // 显示状态消息（Toast 通知）
-        // ===== 「东西搬走了」全局指路条（临时，约 v3.19 摘掉，见 markup 处注释）=====
-        // 键名带版本号：将来若要再公告别的事，换个键就行，不会被这次的已读状态吃掉。
-        const MOVED_NOTICE_KEY = 'iptv.notice.sources-moved.v3.18';
-
-        function initMovedNotice() {
-            const el = document.getElementById('movedNotice');
-            if (!el) return;
-            // localStorage 在隐私模式 / 被禁用时读写都会抛，不能让它带崩整个初始化。
-            // 读不到就当没读过——多显示一次远好过整页 JS 挂掉。
-            let dismissed = false;
-            try { dismissed = localStorage.getItem(MOVED_NOTICE_KEY) === '1'; } catch (e) {}
-            el.style.display = dismissed ? 'none' : 'flex';
-        }
-
-        function dismissMovedNotice() {
-            const el = document.getElementById('movedNotice');
-            if (el) el.style.display = 'none';
-            try { localStorage.setItem(MOVED_NOTICE_KEY, '1'); } catch (e) {}
-        }
-
         // ===== 「有未保存的改动」标记 =====
         //
         // 全站规则是「这一块底下有按钮，就必须按那个按钮；没有按钮的，改一下就已经存好了」。
@@ -9091,6 +9299,8 @@ if(success){
         // 台标点用真实图片加载结果判定（绿=能加载到 / 红=加载失败或无图），比单看 logoStatus 更准。
         // 含义由上方常驻图例 + 每点 hover 文字说明；详情里仍有完整文字。
         function channelStatusDots(channel) {
+            // 公告和教程是本地短片，不需要节目单/台标配对提示。
+            if (isSystemAnnouncementChannel(channel)) return '';
             const base = window.location.origin + API_PREFIX;
             const src = channel.logo ? String(channel.logo).replace(/\$\{replace\}/g, base) : '';
             const epgOk = !!channel.epgMatched;
@@ -9332,6 +9542,63 @@ if(success){
             }
         }
 
+        function groupDetailActionsMarkup(group, groupIndex) {
+            const isUngrouped = group.name === '未分组';
+            const isCustomGroup = isCustomGroupName(group.name);
+            const isNameSorted = !!(myPlaylistConfig.groupSortMode && myPlaylistConfig.groupSortMode[group.name] === 'name');
+            const atTop = isUngrouped || groupIndex <= groupOrderFloor();
+            const atBottom = isUngrouped || groupIndex === myPlaylistData.length - 1;
+            return `
+                <div class="group-action-grid">
+                    <span class="group-action-label">分组</span>
+                    <div class="group-action-btns">
+                        ${isCustomGroup ? `<button class="btn btn-danger btn-sm" onclick="removeGroup(${groupIndex})">删除分组</button>` : ''}
+                        <button class="btn btn-sm" onclick="renameGroup(${groupIndex})" ${isUngrouped ? 'disabled' : ''}>重命名</button>
+                        <button class="btn btn-danger btn-sm" onclick="deleteGroup(${groupIndex})" ${isUngrouped || isCustomGroup ? 'disabled' : ''} title="${isCustomGroup ? '自定义分组无需隐藏：「删除分组」即彻底移除；想隐藏其中的频道请用「批量管理 → 隐藏」' : isUngrouped ? '「未分组」不可隐藏' : '隐藏整个分组，可在右侧「已隐藏」里恢复'}">隐藏分组</button>
+                        <button class="btn btn-sm" onclick="moveGroup(${groupIndex}, 'top')" ${atTop ? 'disabled' : ''} title="把这个分组移到所有分组最前"><svg class="group-action-icon" viewBox="0 0 12 12" aria-hidden="true" focusable="false"><path d="M2 2h8M6 10V4M3 7l3-3 3 3"/></svg>置顶</button>
+                        <button class="btn btn-sm" onclick="moveGroup(${groupIndex}, 'up')" ${atTop ? 'disabled' : ''} title="把这个分组往前挪一位"><svg class="group-action-icon" viewBox="0 0 12 12" aria-hidden="true" focusable="false"><path d="M6 10V2M3 5l3-3 3 3"/></svg>上移</button>
+                        <button class="btn btn-sm" onclick="moveGroup(${groupIndex}, 'down')" ${atBottom ? 'disabled' : ''} title="把这个分组往后挪一位"><svg class="group-action-icon" viewBox="0 0 12 12" aria-hidden="true" focusable="false"><path d="M6 2v8M3 7l3 3 3-3"/></svg>下移</button>
+                        <button class="btn btn-sm" onclick="moveGroup(${groupIndex}, 'bottom')" ${atBottom ? 'disabled' : ''} title="把这个分组移到所有分组最后"><svg class="group-action-icon" viewBox="0 0 12 12" aria-hidden="true" focusable="false"><path d="M2 10h8M6 2v6M3 5l3 3 3-3"/></svg>置底</button>
+                    </div>
+                    <span class="group-action-label">组内频道</span>
+                    <div class="group-action-btns">
+                        <button class="btn btn-sm" onclick="toggleGroupSort()" title="点击切换：手动拖拽 ⇄ 按名称自动排序（中文按拼音、含数字按数值）">排序：${isNameSorted ? '名称' : '手动'}</button>
+                        <button class="btn btn-primary btn-sm" onclick="toggleBatchMode()">批量管理</button>
+                    </div>
+                </div>
+            `;
+        }
+
+        // 公告没有配对说明和分组按钮，但标题卡仍按普通分组的实际布局占位，切换时列表不会跳动。
+        function fitAnnouncementHeaderHeight() {
+            const header = document.getElementById('detailHeader');
+            if (!header || !header.classList.contains('announcement-header') || header.style.display === 'none') return;
+            const width = header.getBoundingClientRect().width;
+            if (!width) return;
+            const groupIndex = myPlaylistData.findIndex(group => !isSystemAnnouncementGroup(group) && !isCustomGroupName(group.name) && group.name !== '未分组');
+            const group = myPlaylistData[groupIndex] || { name: '频道分组', channels: [] };
+            const sample = header.cloneNode(true);
+            sample.removeAttribute('id');
+            sample.querySelectorAll('[id]').forEach(element => element.removeAttribute('id'));
+            sample.classList.remove('announcement-header');
+            sample.setAttribute('aria-hidden', 'true');
+            sample.inert = true;
+            Object.assign(sample.style, {
+                position: 'absolute', visibility: 'hidden', pointerEvents: 'none',
+                width: width + 'px', minHeight: '0', height: 'auto', margin: '0', top: '0', left: '0'
+            });
+            sample.querySelector('.my-playlist-detail-title').textContent = `${group.name} (${group.channels.length}个频道)`;
+            sample.querySelector('.ch-status-legend').style.display = '';
+            sample.querySelector('.my-playlist-detail-actions').innerHTML = groupDetailActionsMarkup(group, groupIndex);
+            header.parentElement.appendChild(sample);
+            const height = sample.getBoundingClientRect().height;
+            const infoHeight = sample.querySelector('.my-playlist-detail-info').getBoundingClientRect().height;
+            sample.remove();
+            header.style.minHeight = height + 'px';
+            header.style.setProperty('--group-detail-info-height', infoHeight + 'px');
+        }
+        window.addEventListener('resize', fitAnnouncementHeaderHeight);
+
         function renderGroupDetail() {
             const container = document.getElementById('myPlaylistGroups');
             const header = document.getElementById('detailHeader');
@@ -9339,10 +9606,13 @@ if(success){
             const actions = document.getElementById('detailActions');
             
             if (!container || !header || !title || !actions) return;
+            header.classList.remove('announcement-header');
+            header.style.minHeight = '';
+            header.style.removeProperty('--group-detail-info-height');
 
-            // 搜索结果行不带节目单/台标圆点，图例跟着收起
+            // 搜索结果和空视图不显示配对图例，选中普通分组后再展开。
             const legend = document.querySelector('.my-playlist-middle .ch-status-legend');
-            if (legend) legend.style.display = channelSearchQuery ? 'none' : '';
+            if (legend) legend.style.display = 'none';
 
             if (channelSearchQuery) {
                 // 搜索分支放在这里而不是输入事件里：隐藏、改名、切源等几十处保存后都会重渲染本区域，
@@ -9447,8 +9717,6 @@ if(success){
                 groupIndex = selectedGroupIndex;
                 header.style.display = 'flex';
                 title.textContent = `${group.name} (${group.channels.length}个频道)`;
-                const isUngrouped = group.name === '未分组';
-                const isCustomGroup = isCustomGroupName(group.name);
                 const isNameSorted = !!(myPlaylistConfig.groupSortMode && myPlaylistConfig.groupSortMode[group.name] === 'name');
                 const isProtectedAnnouncement = isSystemAnnouncementGroup(group);
 
@@ -9476,20 +9744,7 @@ if(success){
                         <button class="btn btn-primary btn-sm" onclick="toggleBatchMode()">退出批量</button>
                     `;
                 } else {
-                    // 「公告」固定在第一位，别的分组最高只能到它后面
-                    const atTop = isUngrouped || groupIndex <= groupOrderFloor();
-                    const atBottom = isUngrouped || groupIndex === myPlaylistData.length - 1;
-                    actions.innerHTML = `
-                        ${isCustomGroup ? `<button class="btn btn-danger btn-sm" onclick="removeGroup(${groupIndex})">删除分组</button>` : ''}
-                        <button class="btn btn-sm" onclick="renameGroup(${groupIndex})" ${isUngrouped ? 'disabled' : ''}>重命名</button>
-                        <button class="btn btn-sm" onclick="moveGroup(${groupIndex}, 'top')" ${atTop ? 'disabled' : ''} title="把这个分组移到所有分组最前">⤒ 置顶</button>
-                        <button class="btn btn-sm" onclick="moveGroup(${groupIndex}, 'up')" ${atTop ? 'disabled' : ''}>↑ 上移</button>
-                        <button class="btn btn-sm" onclick="moveGroup(${groupIndex}, 'down')" ${atBottom ? 'disabled' : ''}>↓ 下移</button>
-                        <button class="btn btn-sm" onclick="moveGroup(${groupIndex}, 'bottom')" ${atBottom ? 'disabled' : ''} title="把这个分组移到所有分组最后">⤓ 置底</button>
-                        <button class="btn btn-sm" onclick="toggleGroupSort()" title="点击切换：手动拖拽 ⇄ 按名称自动排序（中文按拼音、含数字按数值）">排序：${isNameSorted ? '名称' : '手动'}</button>
-                        <button class="btn btn-danger btn-sm" onclick="deleteGroup(${groupIndex})" ${isUngrouped || isCustomGroup ? 'disabled' : ''} title="${isCustomGroup ? '自定义分组无需隐藏：「删除分组」即彻底移除；想隐藏其中的频道请用「批量管理 → 隐藏」' : isUngrouped ? '「未分组」不可隐藏' : '隐藏整个分组，可在右侧「已隐藏」里恢复'}">隐藏分组</button>
-                        <button class="btn btn-primary btn-sm" onclick="toggleBatchMode()">批量管理</button>
-                    `;
+                    actions.innerHTML = groupDetailActionsMarkup(group, groupIndex);
                 }
 
                 const mergedCount = mergedSourceGroupCount(group);
@@ -9531,6 +9786,12 @@ if(success){
                         </div>
                     `}
                 `;
+            }
+
+            if (legend && !isSystemAnnouncementGroup(group)) legend.style.display = '';
+            if (!isViewingDeleted && isSystemAnnouncementGroup(group)) {
+                header.classList.add('announcement-header');
+                fitAnnouncementHeaderHeight();
             }
 
             // 刚编辑过的频道：重渲染后滚动定位 + 启动临时高亮自动消退（issue #50）。
@@ -11362,6 +11623,15 @@ if(success){
             }
         });
 
+        // 提醒列表：点遮罩或按 Esc 关闭
+        document.addEventListener('click', function(event) {
+            if (event.target === document.getElementById('alertCenterModal')) closeAlertCenter();
+        });
+        document.addEventListener('keydown', function(event) {
+            const modal = document.getElementById('alertCenterModal');
+            if (event.key === 'Escape' && modal && modal.style.display === 'block') closeAlertCenter();
+        });
+
         // 抓取模块详情支持 Esc 关闭；若上面还叠着登录/帮助等子弹窗，则先留给子弹窗处理。
         document.addEventListener('keydown', function(event) {
             if (event.key !== 'Escape') return;
@@ -11379,13 +11649,33 @@ if(success){
         function inlinePlayerBaseUrl() {
             return window.location.origin + window.location.pathname.replace(/\/[^/]+$/, '');
         }
-        // 咪咕与山东齐鲁入口会 302 到没有 CORS 许可的 CDN，浏览器无法读取清单。
+        // 从最高档起播：主清单解析完后把起播档设成分辨率最高（同分辨率取码率最高）的那一档再开始加载，
+        // 之后照常自动升降档，网速跟不上会降。hls.js 默认按测速从中低档起步，几秒后才升上来。单档清单不受影响。
+        function highestLevelIndex(levels) {
+            let best = -1;
+            (levels || []).forEach((level, index) => {
+                const pixels = (level.width || 0) * (level.height || 0);
+                const top = levels[best];
+                const topPixels = top ? (top.width || 0) * (top.height || 0) : -1;
+                if (pixels > topPixels || (pixels === topPixels && (level.bitrate || 0) > (top.bitrate || 0))) best = index;
+            });
+            return best;
+        }
+        function startHlsAtTopLevel(hls) {
+            hls.once(Hls.Events.MANIFEST_PARSED, (event, data) => {
+                const index = highestLevelIndex(data.levels);
+                if (index >= 0) hls.startLevel = index;
+                hls.startLoad();
+            });
+        }
+        // 咪咕与山东齐鲁入口会 302 到没有 CORS 许可的 CDN，浏览器无法读取清单；宁波的清单中继下发的分片
+        // 在官方 CDN 上，跨域许可写死成官网域名、还拒绝别家来源头，网页同样读不到。
         // 仅网页播放改走现有全代理；保留密码/账号前缀和回看参数，其他来源及外部播放器地址不改。
         function browserPlaybackUrl(rawUrl, pageUrl = window.location.href) {
             try {
                 const url = new URL(rawUrl, pageUrl);
                 if (url.origin !== new URL(pageUrl).origin) return rawUrl;
-                const match = url.pathname.match(/^(.*\/)(\d+|iqilu-[a-z0-9]{2,12})(?:\.m3u8)?$/);
+                const match = url.pathname.match(/^(.*\/)(\d+|iqilu-[a-z0-9]{2,12}|ningbo-[a-z]{2,12})(?:\.m3u8)?$/);
                 if (!match) return rawUrl;
                 let prefix = match[1];
                 if (prefix.endsWith('/proxy/')) return rawUrl;
@@ -11470,7 +11760,8 @@ if(success){
                         // 央视频等来源每次刷新清单会换 CDN 节点，同一分片序号的地址随之变化；hls.js 1.6 起
                         // 把这当成清单错误，只有一个清晰度时直接放弃，十几秒后停播（issue #142）。内容是同一路
                         // 流，照常播即可，只记警告。
-                        const hls = new Hls({ enableWorker: true, lowLatencyMode: true, backBufferLength: 90, ignorePlaylistParsingErrors: true });
+                        const hls = new Hls({ enableWorker: true, lowLatencyMode: true, backBufferLength: 90, ignorePlaylistParsingErrors: true, autoStartLoad: false });
+                        startHlsAtTopLevel(hls);
                         hls.loadSource(url);
                         hls.attachMedia(video);
                         hls.on(Hls.Events.ERROR, (event, data) => {

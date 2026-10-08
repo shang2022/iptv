@@ -2,7 +2,7 @@
 import { buildChannels, claimsRef } from './channels.js'
 import epg from './epg.js'
 import { clearCache, resolveChannel } from './resolver.js'
-import { browserLoginFlow, claimsLocalPath, handleLocalRequest, shutdown } from './runtime.js'
+import { browserLoginFlow, claimsLocalPath, credentialRejected, handleLocalRequest, shutdown } from './runtime.js'
 
 export default {
   id: 'yangshipin',
@@ -35,6 +35,8 @@ export default {
   refreshConfigurable: false,
   refreshDescription: '自动管理：公开频道播放时刷新短效地址并让分片直连 CDN；VIP 频道由本机官网浏览器持续解扰并输出兼容 HLS。',
   helper: 'yangshipin-login',
+  // 刷新（每天一次）不查；登录态由 6 小时保活、会员台播放、后台检查读账号时发现，经 credentialRejected 上报
+  credentialCheck: { refresh: false, playback: true, degrade: '10 个会员频道照留但播不了（没有游客版），63 个公开频道不受影响' },
   configSchema: [],
   // 官网节目单，按频道表里的 livePid 取；与取流链路互不依赖（见 epg.js）
   epg,
@@ -44,6 +46,8 @@ export default {
   },
 
   claimsRef,
+  // 登录态失效由保活 / 会员台播放 / 后台检查读账号时发现（runtime.js 的失效记录），这里交给提醒中心
+  credentialRejected,
   resolve: resolveChannel,
   clearResolveCache: clearCache,
   browserLoginFlow,

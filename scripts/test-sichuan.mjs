@@ -287,7 +287,7 @@ await checkAsync('签名被提前作废时重签一次；官网不认 Token 时�
   assert.match(denied.desc, /官网不认当前 Token（已过期或已在别处失效）/)
 })
 
-await checkAsync('刷新时试换签检验 Token：不认就写进警告但频道照留，网关 HTTP 401 同样处理', async () => {
+await checkAsync('刷新时试换签检验 Token：不认就记为凭证失效但频道照留，网关 HTTP 401 同样处理', async () => {
   const accessToken = 'account-token'
   const page = Array.from({ length: 8 }, (_, index) => ({
     id: String(1016553 + index),
@@ -312,6 +312,7 @@ await checkAsync('刷新时试换签检验 Token：不认就写进警告但频�
   let fetched = await sichuan.fetch({ accessToken }, { fetchImpl, now: 1788666000000 })
   assert.equal(fetched.groups[0].dataList.length, 8)
   assert.deepEqual(tokenWarnings(fetched), [])
+  assert.equal(fetched.meta.credentialRejected, '')
   // 签名进了缓存，播放时不再换签
   await resolveChannel('sichuan-1016553', {
     config: { accessToken },
@@ -326,18 +327,21 @@ await checkAsync('刷新时试换签检验 Token：不认就写进警告但频�
   auth = () => response({ trace_id: 'x', rs: 401, error: '请登录后重试', message: '请登录后重试', data: {} })
   fetched = await sichuan.fetch({ accessToken }, { fetchImpl, now: 1788666000000 })
   assert.equal(fetched.groups[0].dataList.length, 8)
-  assert.deepEqual(tokenWarnings(fetched), [new TokenRejectedError().message])
+  // 被拒走结构化字段（后台徽标和导航红点读它），不再混在普通警告里
+  assert.equal(fetched.meta.credentialRejected, new TokenRejectedError().message)
+  assert.deepEqual(tokenWarnings(fetched), [])
 
   clearCache()
   auth = () => response('<html>401 Authorization Required</html>', 401)
   fetched = await sichuan.fetch({ accessToken }, { fetchImpl, now: 1788666000000 })
-  assert.deepEqual(tokenWarnings(fetched), [new TokenRejectedError().message])
+  assert.equal(fetched.meta.credentialRejected, new TokenRejectedError().message)
 
   // 别的失败只说检查没做完，不冤枉 Token
   clearCache()
   auth = () => response('bad gateway', 502)
   fetched = await sichuan.fetch({ accessToken }, { fetchImpl, now: 1788666000000 })
   assert.deepEqual(tokenWarnings(fetched), ['四川 Token 检查没有完成：HTTP 502'])
+  assert.equal(fetched.meta.credentialRejected, undefined, '没查成不下结论，后台沿用上一轮')
   assert.equal(fetched.groups[0].dataList.length, 8)
 })
 
@@ -360,9 +364,9 @@ check('后台包含四川官网书签工具且不会把 Token 写入播放地址
   assert.match(admin, /sichuanBookmarklet/)
   assert.match(admin, /scgc_useraccountinfo/)
   assert.match(admin, /获取四川 Token/)
-  // 徽标靠这句识别「官网不认 Token」的警告，两边措辞要一致
-  assert.ok(new TokenRejectedError().message.includes('官网不认当前 Token'))
-  assert.match(admin, /includes\('官网不认当前 Token'\)/)
+  // 徽标读结构化的 health.credentialRejected，不靠匹配警告措辞
+  assert.match(admin, /const rejected = loggedIn && !!\(health && health\.credentialRejected\)/)
+  assert.doesNotMatch(admin, /includes\('官网不认当前 Token'\)/)
 })
 
 console.log(`\n全部通过：${passed} ✅`)

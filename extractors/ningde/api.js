@@ -6,7 +6,8 @@
  * - code 为 200 时 data.link 是 live.0593tv.cn/live/<流名>.m3u8，不带签名、多次请求不变；
  *   主清单只有一路子清单（带 hls_ctx 会话参数），清单与分片不看 Referer 和 UA，播放器直连即可；
  * - 接口不看 Origin / Referer，照分享页带上；
- * - Globalping 大陆探针取得到清单，美国、香港探针连不上 live.0593tv.cn（只在大陆可看）。
+ * - 2026-09-30 时 Globalping 美国、香港探针连不上 live.0593tv.cn；10-06 复测 GitHub Actions 三个美国机房、
+ *   Globalping 港 / 日 / 美 / 英都能取到清单与分片，海外现在也能播（OVERSEAS.md）。
  *
  * 流名虽然固定，还是每轮刷新向接口要一次：哪天台里换了流名，下一轮自动跟上，不用改代码。
  */
