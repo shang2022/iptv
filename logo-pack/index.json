@@ -2145,6 +2145,51 @@
    "updated": "2026-09-25",
    "width": 90
   },
+  "青岛都市": {
+   "file": "青岛都市.png",
+   "hash": "d67ce29213",
+   "height": 37,
+   "origin": "qingdao",
+   "source": "https://www.qtv.com.cn/shouye/images/stationlogo.png",
+   "updated": "2026-10-09",
+   "width": 256
+  },
+  "青岛教育": {
+   "file": "青岛教育.png",
+   "hash": "d67ce29213",
+   "height": 37,
+   "origin": "qingdao",
+   "source": "https://www.qtv.com.cn/shouye/images/stationlogo.png",
+   "updated": "2026-10-09",
+   "width": 256
+  },
+  "青岛生活服务": {
+   "file": "青岛生活服务.png",
+   "hash": "d67ce29213",
+   "height": 37,
+   "origin": "qingdao",
+   "source": "https://www.qtv.com.cn/shouye/images/stationlogo.png",
+   "updated": "2026-10-09",
+   "width": 256
+  },
+  "青岛新闻综合": {
+   "file": "青岛新闻综合.png",
+   "hash": "d67ce29213",
+   "height": 37,
+   "origin": "qingdao",
+   "source": "https://www.qtv.com.cn/shouye/images/stationlogo.png",
+   "updated": "2026-10-09",
+   "width": 256
+  },
+  "青岛影视": {
+   "file": "青岛影视.png",
+   "hash": "d67ce29213",
+   "height": 37,
+   "origin": "qingdao",
+   "source": "https://www.qtv.com.cn/shouye/images/stationlogo.png",
+   "updated": "2026-10-09",
+   "width": 256
+  },
   "青海都市": {
    "file": "青海都市.png",
    "hash": "a1815121a2",
@@ -2828,6 +2873,17 @@
    "source": "https://s1.wisetv.com.cn/pic/1000/4110/0000/0000/0000/0000/0410/BTshVVIHWWZVQCmUuSivILNOKhwORvI5270.jpg",
    "updated": "2026-09-25",
    "width": 180
+  },
+  "天台和合频道": {
+   "file": "天台和合频道.png",
+   "hash": "e4250940e6",
+   "height": 192,
+   "kind": "official",
+   "note": "和合天台 App「看电视」页的官方频道卡是一张 720×360 的「天台和合频道 / 欢迎点击观看」点击横幅，正中的橙色风车就是这路频道的台标（与播出画面左上角的台角一致），裁出风车并去白底；横幅在风车中心叠了一个播放键，官方没有不带播放键的图，照原样保留",
+   "origin": "manual",
+   "source": "https://img.tmuyun.com/assets/20191015/1571127453029_5da5809db19850201dbf0b38.jpeg（和合天台 App 看电视页 app.ttcmzx.cn/client/lightPage.html?tenant_id=5&id=61 的频道卡）",
+   "updated": "2026-10-09",
+   "width": 200
   },
   "通化新闻综合": {
    "file": "通化新闻综合.png",
@@ -4766,6 +4822,11 @@
   "putian/putian-culture": "莆田文旅生活",
   "putian/putian-news": "莆田新闻综合",
   "putian/putian-xianyou": "仙游电视台",
+  "qingdao/qingdao-1": "青岛新闻综合",
+  "qingdao/qingdao-2": "青岛生活服务",
+  "qingdao/qingdao-3": "青岛影视",
+  "qingdao/qingdao-4": "青岛都市",
+  "qingdao/qingdao-5": "青岛教育",
   "qinghai/qinghai-amdo": "安多卫视",
   "qinghai/qinghai-qhds": "青海都市",
   "qinghai/qinghai-qhsh": "青海经济生活",
@@ -4807,6 +4868,7 @@
   "sztv/sztv-7880": "深圳电视剧",
   "sztv/sztv-7881": "深圳少儿",
   "sztv/sztv-7944": "深圳国际",
+  "taizhou/taizhou-tiantai-hehe": "天台和合频道",
   "tdm/tdm-ctvp": "澳视澳门",
   "tdm/tdm-info": "澳门资讯",
   "tdm/tdm-ptvp": "澳视葡文",
