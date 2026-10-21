@@ -1,4 +1,4 @@
-/** 辽宁「北斗融媒」省、市台目录与阿里云 HLS 短签名。 */
+/** 云盛京官方沈阳电视目录与阿里云 HLS 短签名；省台入口故障期间停用。 */
 import { createHash } from 'node:crypto'
 import fetch from 'node-fetch'
 import { createOauthSign, decodeOauth } from './auth.js'
@@ -13,12 +13,9 @@ const AUTH_RETRY_MS = 5000
 // CDN Referer 会轮换，必须从 getOauth 动态取得，不能把某次解析结果固定在这里。
 export const TENANTS = [
   {
-    id: 'liaoning', label: '辽宁省台', group: '辽宁', host: 'bdrm.bdy.lnyun.com.cn', tabId: 3,
-    streamHost: 'bdrmtvzb.lnyun.com.cn',
-  },
-  {
-    id: 'shenyang', label: '沈阳台', group: '辽宁', host: 'sygbdst.bdy.lnyun.com.cn', tabId: 2,
-    streamHost: 'sygbdsttvzb.lnyun.com.cn',
+    // 云盛京官方 App 的分享域名，原 bdy 入口当前返回 WAF 405。
+    id: 'shenyang', label: '沈阳台', group: '辽宁', host: 'mobile.yunshengjing.com', tabId: 2,
+    streamHost: 'sygbdsttvzb.lnyun.com.cn', authVersion: 3,
   },
 ]
 
@@ -26,16 +23,6 @@ const TENANT_BY_ID = new Map(TENANTS.map(tenant => [tenant.id, tenant]))
 
 // 只收录官方「看电视」页当前声明的正式频道。白名单避免专题直播间混入常驻频道。
 const CHANNEL_NAMES = new Map(Object.entries({
-  c077b260424404846285cba1e1759280: '辽宁卫视',
-  '10d3de0d03c62e85a1a281bbde8b6952': '辽宁都市',
-  '918510749a0f319ec12ff695b1c95230': '辽宁影视剧',
-  '854e7044de9fef5163ae36fabb72de56': '辽宁教育青少',
-  '078ce87dcf5384d51e4655cb962fda18': '辽宁生活',
-  e0bb9a7fd9afa954658bc50d0681cd49: '辽宁体育休闲',
-  '8e95535378bd3e5f7494bc23ab1cb117': '辽宁北方',
-  '7ff8ce0d226f2eb92e332be0cb13b406': '新动漫',
-  fb3cf5af7cd3bcbde56c280cad2e64cb: '辽宁移动电视',
-  '7e29bde4f41ca08642b7fc3ce4eb1ae4': '家庭理财',
   d447fcc472f14c7f14872d4e26b12d8f: '沈阳新闻综合',
   eaecc3f39a6e94f2ac6197c229b4cd6b: '沈阳经济',
   acb1a5713531ac7feb7836b1b4db442c: '沈阳公共',
@@ -76,11 +63,11 @@ async function cachedTenantAuth(tenant, channelId, options) {
   if (cached?.expiresAt > now) return cached.auth
   if (cached?.retryAt > now) throw new Error(cached.error)
   if (!pending.has(tenant.id)) {
-    const params = new URLSearchParams({ domainId: channelId, version: '5', sign: createOauthSign(channelId, now) })
+    const params = new URLSearchParams({ domainId: channelId, version: String(tenant.authVersion), sign: createOauthSign(channelId, now) })
     const request = requestJson(`https://${tenant.host}/cloud/apis/live/api/domain/getOauth?${params}`, tenant, {
       ...options, method: 'POST',
     }).then(payload => {
-      const auth = decodeOauth(payload, tenant.streamHost)
+      const auth = decodeOauth(payload, tenant.streamHost, tenant.authVersion)
       // referTimeOut 为剩余秒数。提前 30 秒刷新，并至多缓存 10 分钟。
       const ttl = Math.max(0, Math.min(AUTH_TTL_MS, auth.remainingSeconds * 1000 - 30000))
       cache.set(tenant.id, { auth, expiresAt: now + ttl })
@@ -267,11 +254,16 @@ export function signStreamUrl(rawUrl, tenantId, pullKey, now = Date.now()) {
   return url.href
 }
 
+/** 收口到仍在用的沈阳三路，也供加载旧磁盘缓存时剔除省台频道。 */
+export function claimsRef(ref) {
+  const match = /^beidou-shenyang-([a-f0-9]{32})$/.exec(String(ref || ''))
+  return !!match && CHANNEL_NAMES.has(match[1])
+}
+
 export async function resolveChannel(ref, ctx = {}) {
   try {
-    const match = /^beidou-(liaoning|shenyang)-([a-f0-9]{32})$/.exec(String(ref || ''))
-    if (!match) return { url: '', desc: '北斗融媒频道引用格式错误' }
-    const [, tenantId, channelId] = match
+    if (!claimsRef(ref)) return { url: '', desc: '北斗融媒频道已停用或引用无效；当前仅提供沈阳三路' }
+    const [, tenantId, channelId] = /^beidou-(shenyang)-([a-f0-9]{32})$/.exec(ref)
     const tenant = TENANT_BY_ID.get(tenantId)
     const rows = await cachedTenantRows(tenantId, {
       timeoutMs: ctx.timeoutMs,

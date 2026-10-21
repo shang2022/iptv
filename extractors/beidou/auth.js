@@ -1,5 +1,6 @@
-/** 北斗融媒 Android 4.0.66 的公开直播鉴权协议（authVersion=5）。 */
+/** 北斗融媒 v5 / 云盛京 v3 的公开直播鉴权协议。 */
 import { constants, createHash, createPrivateKey, privateDecrypt, randomInt } from 'node:crypto'
+import { CLIENT_KEY_V3 } from './client-auth-v3.js'
 
 // 客户端内置的配置解码材料，用于解开匿名 getOauth 下发的 refer/pullKey，
 // 不是用户私钥。原始 DER 实际为 PKCS#8，客户端的 PEM 标签却写成 RSA PRIVATE KEY。
@@ -46,13 +47,20 @@ export function createOauthSign(channelId, now = Date.now(), random = randomInt)
   return Buffer.from('' + digit + a + b + c + d + seconds).toString('base64') + digest
 }
 
-function decryptValue(value) {
+function decryptValue(value, version) {
+  const key = version === 5 ? CLIENT_KEY : version === 3 ? CLIENT_KEY_V3 : null
+  if (!key) throw new Error('不支持的直播鉴权版本')
   if (typeof value !== 'string' || !/^[A-Za-z0-9+/]{171}=$/.test(value)) {
     throw new Error('直播鉴权密文格式错误')
   }
   // Node/OpenSSL 部分版本禁止 RSA_PKCS1_PADDING 私钥解码；按客户端协议
   // 解出固定 128 字节块后，完整验证 PKCS#1 v1.5 的 00 02 PS 00 填充。
-  const block = privateDecrypt({ key: CLIENT_KEY, padding: constants.RSA_NO_PADDING }, Buffer.from(value, 'base64'))
+  let block
+  try {
+    block = privateDecrypt({ key, padding: constants.RSA_NO_PADDING }, Buffer.from(value, 'base64'))
+  } catch {
+    throw new Error('直播鉴权解码失败')
+  }
   const separator = block.indexOf(0, 2)
   if (block.length !== 128 || block[0] !== 0 || block[1] !== 2 || separator < 10 || separator === 127) {
     throw new Error('直播鉴权解码失败')
@@ -60,15 +68,15 @@ function decryptValue(value) {
   return new TextDecoder('utf-8', { fatal: true }).decode(block.subarray(separator + 1))
 }
 
-export function decodeOauth(payload, streamHost) {
+export function decodeOauth(payload, streamHost, version = 5) {
   const data = typeof payload?.data === 'string' ? JSON.parse(payload.data) : payload?.data
   if (Number(payload?.code) !== 200 || !data || data.domain !== streamHost) {
     throw new Error('直播鉴权 CDN 不匹配')
   }
   const remainingSeconds = Number(data.referTimeOut)
   if (!Number.isFinite(remainingSeconds) || remainingSeconds <= 0) throw new Error('直播鉴权已过期')
-  const pullKey = decryptValue(data.pullKey)
-  const refer = decryptValue(data.refer)
+  const pullKey = decryptValue(data.pullKey, version)
+  const refer = decryptValue(data.refer, version)
   if (!/^[A-Za-z0-9]{1,64}$/.test(pullKey)) throw new Error('直播拉流密钥格式错误')
   const referer = /^https?:\/\//.test(refer) ? refer : 'http://' + refer
   // 官方返回租户域名，阻止控制字符或非平台地址成为上游请求头。

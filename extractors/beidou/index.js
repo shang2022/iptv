@@ -1,12 +1,13 @@
-/** 辽宁北斗融媒：辽宁省台与沈阳台，播放时生成短效 HLS 并全代理防盗链。 */
-import { buildChannelGroups, clearCache, fetchChannelRows, resolveChannel, TENANTS } from './api.js'
+/** 辽宁模块：云盛京官方沈阳三路，播放时生成短效 HLS 并全代理防盗链。 */
+import { buildChannelGroups, claimsRef, clearCache, fetchChannelRows, resolveChannel, TENANTS } from './api.js'
 
 const REGIONS = TENANTS.map(tenant => tenant.id)
 
 export default {
   id: 'beidou',
   name: '辽宁',
-  description: '北斗融媒官方辽宁省台与沈阳台直播；固定排除购物频道，只收录当前确认为 live 的频道。',
+  description: '云盛京官方沈阳新闻综合、经济、公共三路；只收录当前 live 频道，辽宁省台因官方入口故障暂时移除。',
+  catalogVersion: 1,
   capabilities: { cache: 'disk', resolve: true, epg: false },
   outputGroupName: '辽宁',
   defaultRefreshMinutes: 10,
@@ -27,7 +28,7 @@ export default {
     return { groups, meta: { skipped, warnings } }
   },
 
-  claimsRef: ref => /^beidou-(?:liaoning|shenyang)-[a-f0-9]{32}$/.test(String(ref || '')),
+  claimsRef,
   resolve: resolveChannel,
   clearResolveCache: clearCache,
 }
