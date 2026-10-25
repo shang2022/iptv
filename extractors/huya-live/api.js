@@ -33,8 +33,12 @@ const LINE_REJECT_MS = 5 * 60 * 1000      // 被 CDN 拒绝的线路冷却时长
 const ROOM_RETRY_MS = 10 * 1000           // 所有线路都被拒后，多久再去试一轮；连续失败逐次翻倍
 const ROOM_RETRY_MAX_MS = 2 * 60 * 1000
 const MANIFEST_TIMEOUT_MS = 8000
-const roomCache = new Map()      // room:quality -> { expiresAt, name, presenterUid, bitrate, lines, signed }
+// 房间页给的 wsTime 是签名到期时刻（约取页后 5 分钟）。复用的签名到期前后被拒才重签；
+// 没到期就被拒是线路在拒这个出口（AL 线路有过「新签名首取放行、再取就拒」），重签只会越签越被拒，直接换线
+const SESSION_EXPIRY_MARGIN_MS = 30 * 1000
+const roomCache = new Map()      // room:quality -> { expiresAt, name, presenterUid, bitrate, lines }
 const roomPending = new Map()
+const lineSessions = new Map()   // room:quality -> Map<cdn, { url, streamName, base, bitrate, signedAt, expiresAt }>：播放期间一直复用的签名地址
 const rejectedLines = new Map()  // room -> Map<cdn, until>
 const preferredLine = new Map()  // room -> 上次能播的线路
 const roomFailUntil = new Map()  // room -> { until, desc, streak }
@@ -426,7 +430,7 @@ async function loadRoom(room, quality, ctx) {
         .filter(item => item?.sHlsUrl && item?.sHlsAntiCode)
         .map((stream, index) => ({ cdn: String(stream.sCdnType || `line${index + 1}`), stream }))
       if (!lines.length) throw new HuyaError(`虎牙房间 ${room} 当前没有 HLS 流`)
-      const entry = { expiresAt: now + RESOLVE_TTL_MS, name: data.name, presenterUid: data.presenterUid, bitrate, lines, signed: new Map() }
+      const entry = { expiresAt: now + RESOLVE_TTL_MS, name: data.name, presenterUid: data.presenterUid, bitrate, lines }
       roomCache.set(key, entry)
       return entry
     })().finally(() => {
@@ -437,13 +441,40 @@ async function loadRoom(room, quality, ctx) {
   return pending
 }
 
-function signedLineUrl(entry, line, now) {
-  let url = entry.signed.get(line.cdn)
-  if (!url) {
-    url = signHlsUrl(line.stream, entry.presenterUid, entry.bitrate, now)
-    entry.signed.set(line.cdn, url)
+function sessionsOf(key) {
+  let map = lineSessions.get(key)
+  if (!map) {
+    map = new Map()
+    lineSessions.set(key, map)
   }
-  return url
+  return map
+}
+
+/**
+ * 一条线路的签名地址在整个播放期间复用，不随 60 秒一次的房间页刷新重签。
+ * 实测（2026-10-24）：CDN 按「出口 IP + 流 + u」记会话，同一条流短时间内换上第 3 个 seqid 前后
+ * 就把整条线路拒掉几分钟（固定一个签名地址连拉 5 分钟 0 拒）；之前每分钟重签正是断流的根因。
+ * 只有流本身变了（主播重开、换地址、换档）才签新的；签名被拒时由 resolveFresh 决定重签还是换线。
+ */
+function lineSession(entry, key, line, now, { fresh = false } = {}) {
+  const sessions = sessionsOf(key)
+  const streamName = String(line.stream?.sStreamName || '')
+  const base = String(line.stream?.sHlsUrl || '')
+  const current = sessions.get(line.cdn)
+  if (!fresh && current && current.streamName === streamName && current.base === base && current.bitrate === entry.bitrate) {
+    return { ...current, reused: true }
+  }
+  const wsTime = parseInt(new URLSearchParams(String(line.stream?.sHlsAntiCode || '')).get('wsTime') || '', 16)
+  const session = {
+    url: signHlsUrl(line.stream, entry.presenterUid, entry.bitrate, now),
+    streamName,
+    base,
+    bitrate: entry.bitrate,
+    signedAt: now,
+    expiresAt: Number.isFinite(wsTime) ? wsTime * 1000 : 0,
+  }
+  sessions.set(line.cdn, session)
+  return { ...session, reused: false }
 }
 
 function rejectLine(room, cdn, now) {
@@ -466,49 +497,68 @@ export function orderLines(lines, preferred, rejected, now) {
 }
 
 /**
- * 实测（2026-10-09）：房间页首选的 AL 线路播两三分钟后会对同一出口整条 403，之后续签照样被拒，
+ * 实测（2026-10-09）：房间页首选的 AL 线路播两三分钟后会对同一出口整条 403，
  * 而同一房间页里的其它线路从同一出口仍然能播；TX 线路还出现过「清单 200、分片 403」。
- * 所以每次播放请求都由这里取回清单：清单被拒就立刻换下一条线路并把被拒线路冷却 5 分钟，
- * 新换上的线路先探一片分片再交给播放器；清单直接随结果交回，本机中继不必再取一次。
+ * 2026-10-24 查明被拒的根因是每分钟重签（见 lineSession），签名地址改为播放期间复用。
+ * 每次播放请求都由这里取回清单：到期（wsTime）的签名被拒先在同一线路重签一次，
+ * 再被拒、或没到期的签名被拒都算线路被拒——立刻换下一条线路并把被拒线路冷却 5 分钟；刚签出来的地址先探一片分片
+ * 再交给播放器；清单直接随结果交回，本机中继不必再取一次。
  */
+async function tryLine(url, probe, options) {
+  const manifest = await fetchManifest(url, options)
+  if (manifest.status !== 200) return { reason: `清单 HTTP ${manifest.status}`, status: manifest.status }
+  if (!manifest.text.trimStart().startsWith('#EXTM3U')) return { reason: '清单不是 HLS' }
+  if (probe) {
+    const segment = lastSegmentUrl(manifest.text, manifest.finalUrl)
+    const status = segment ? await probeSegment(segment, options) : 200
+    if (status !== 200) return { reason: `分片 HTTP ${status}`, status }
+  }
+  return { manifest }
+}
+
 async function resolveFresh(room, ctx) {
   const now = Number(ctx.now ?? Date.now())
   const quality = qualityFrom(ctx, QUALITY_OPTIONS, DEFAULT_QUALITY)
   // 整个房间刚被判定全线不可用：短时间内直接回同一结论，别替播放器的连环重试去打上游
   const failed = roomFailUntil.get(room)
   if (failed && failed.until > now) throw new HuyaError(failed.desc)
+  const key = `${room}:${quality}`
   const entry = await loadRoom(room, quality, ctx)
   const options = { timeoutMs: ctx.timeoutMs, fetchImpl: ctx.fetchImpl }
   const preferred = preferredLine.get(room)
   const candidates = orderLines(entry.lines, preferred, rejectedLines.get(room), now)
   const failures = []
   for (const line of candidates) {
-    const url = signedLineUrl(entry, line, now)
+    let session = lineSession(entry, key, line, now)
     let reason = ''
+    let resigned = false
     try {
-      const manifest = await fetchManifest(url, options)
-      if (manifest.status !== 200) reason = `清单 HTTP ${manifest.status}`
-      else if (!manifest.text.trimStart().startsWith('#EXTM3U')) reason = '清单不是 HLS'
+      let outcome = await tryLine(session.url, !session.reused, options)
+      if (outcome.reason && session.reused && outcome.status >= 400 && outcome.status < 500
+        && now >= session.expiresAt - SESSION_EXPIRY_MARGIN_MS) {
+        // 到期的签名被拒：用最新房间页的 wsTime 重签一次。别的播放请求可能已经抢先签过了，有就直接用它的
+        const latest = sessionsOf(key).get(line.cdn)
+        session = latest && latest.signedAt > session.signedAt
+          ? { ...latest, reused: false }
+          : lineSession(entry, key, line, now, { fresh: true })
+        resigned = true
+        outcome = await tryLine(session.url, true, options)
+      }
+      if (outcome.reason) reason = outcome.reason
       else {
+        roomFailUntil.delete(room)
+        if (resigned) printYellow(`虎牙「${entry.name}」${line.cdn} 线路签名被拒，已重新签名继续播放`)
         if (line.cdn !== preferred) {
-          const segment = lastSegmentUrl(manifest.text, manifest.finalUrl)
-          const status = segment ? await probeSegment(segment, options) : 200
-          if (status !== 200) reason = `分片 HTTP ${status}`
+          preferredLine.set(room, line.cdn)
+          if (failures.length) printYellow(`虎牙「${entry.name}」${failures.join('、')}，已切换到 ${line.cdn} 线路`)
         }
-        if (!reason) {
-          roomFailUntil.delete(room)
-          if (line.cdn !== preferred) {
-            preferredLine.set(room, line.cdn)
-            if (failures.length) printYellow(`虎牙「${entry.name}」${failures.join('、')}，已切换到 ${line.cdn} 线路`)
-          }
-          return {
-            url,
-            desc: `虎牙「${entry.name}」${bitrateLabel(entry.bitrate)}地址获取成功（${line.cdn} 线路）`,
-            relayHls: true,
-            manifestText: manifest.text,
-            manifestUrl: manifest.finalUrl,
-            upstreamHeaders: { Referer: REFERER, 'User-Agent': UA },
-          }
+        return {
+          url: session.url,
+          desc: `虎牙「${entry.name}」${bitrateLabel(entry.bitrate)}地址获取成功（${line.cdn} 线路）`,
+          relayHls: true,
+          manifestText: outcome.manifest.text,
+          manifestUrl: outcome.manifest.finalUrl,
+          upstreamHeaders: { Referer: REFERER, 'User-Agent': UA },
         }
       }
     } catch (error) {
@@ -516,7 +566,7 @@ async function resolveFresh(room, ctx) {
     }
     failures.push(`${line.cdn} 线路${reason}`)
     rejectLine(room, line.cdn, now)
-    entry.signed.delete(line.cdn)
+    sessionsOf(key).delete(line.cdn)
     if (line.cdn === preferred) preferredLine.delete(room)
   }
   // 有的线路「首次取清单放行、再取就拒」，会让房间在换线成功与全线失败之间来回抖：
@@ -543,6 +593,7 @@ export async function resolveRoom(ref, ctx = {}) {
 export function clearResolveCache() {
   roomCache.clear()
   roomPending.clear()
+  lineSessions.clear()
   rejectedLines.clear()
   preferredLine.clear()
   roomFailUntil.clear()

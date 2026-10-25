@@ -280,8 +280,9 @@ const DEFAULT_SUBSCRIPTION_UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Apple
  *
  * @param {object} [options]
  * @param {string} [options.userAgent] 自定义 UA；不合法或留空用默认值
+ * @param {number} [options.timeoutMs] 每条线路的总超时（含读完响应体），默认 15 秒；测试用来压缩
  */
-async function fetchAndParseM3u(subscriptionUrl, { userAgent } = {}) {
+async function fetchAndParseM3u(subscriptionUrl, { userAgent, timeoutMs = 15000 } = {}) {
   const ua = cleanUserAgent(userAgent) || DEFAULT_SUBSCRIPTION_UA
   const isGithubRaw = subscriptionUrl.includes('raw.githubusercontent.com')
   const mirrors = isGithubRaw ? GITHUB_RAW_MIRRORS : [(url) => url]
@@ -293,7 +294,9 @@ async function fetchAndParseM3u(subscriptionUrl, { userAgent } = {}) {
     // 拆出 URL 内嵌的 user:pass@ 凭据，转成 Basic 认证头（node-fetch 不接受带凭据的 URL）
     const { url: targetUrl, headers: authHeaders } = splitCredentials(transformedUrl)
     const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), 15000)
+    // 超时要管到读完响应体：只管到响应头的话，对方发完头就停住会让这次拉取永远挂着，
+    // 进而卡死 5 分钟一轮的源刷新（防重入锁不释放，之后每轮都跳过，issue #195）
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs)
 
     try {
       const response = await fetch(targetUrl, {
@@ -303,7 +306,6 @@ async function fetchAndParseM3u(subscriptionUrl, { userAgent } = {}) {
           ...authHeaders
         }
       })
-      clearTimeout(timeoutId)
 
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}${response.statusText ? ' ' + response.statusText : ''}`)
@@ -311,6 +313,7 @@ async function fetchAndParseM3u(subscriptionUrl, { userAgent } = {}) {
 
       // 读原始字节并按编码解码（兼容 GBK/GB2312 订阅，避免分组/频道名乱码）
       const buffer = Buffer.from(await response.arrayBuffer())
+      clearTimeout(timeoutId)
       const content = decodeSubscriptionBody(buffer, response.headers.get('content-type'))
       const channels = parsePlaylistContent(content)
 

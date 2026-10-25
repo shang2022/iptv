@@ -57,14 +57,21 @@ const LOCAL_GROUP_NAMES = new Set([
   '沈阳', '南京', '青岛', '广州', '深圳', '福州', '厦门',
 ])
 
-// 景观 / 慢直播类分组：央视景观、北京景观、上海景观…以及吉林广电的「吉林风景」。
+// 景观 / 慢直播类分组：央视景观、北京景观、上海景观…吉林广电的「吉林风景」，以及市县台的「慢直播」。
 function isScenicGroup(name) {
-  return /景观|风景/.test(String(name || ''))
+  return /景观|风景|慢直播/.test(String(name || ''))
+}
+
+// 按地市拆开的省内分组（「山东-济南」）：前缀是省名
+function provinceOfSubgroup(name) {
+  const match = /^([^-]+)-./.exec(String(name || '').trim())
+  return match && LOCAL_GROUP_NAMES.has(match[1]) ? match[1] : ''
 }
 
 export function isLocalGroup(name) {
   const text = String(name || '').trim()
   if (/(?:电视台|地市台)$/.test(text)) return true
+  if (provinceOfSubgroup(text)) return true
   const bare = text.replace(/(?:电视台|地市台|频道)$/, '')
   return LOCAL_GROUP_NAMES.has(bare)
 }
@@ -77,8 +84,13 @@ export function isLocalGroup(name) {
  */
 export function sortGroupsByDefault(groups) {
   const priority = new Map(DEFAULT_GROUP_ORDER.map((name, index) => [name, index]))
+  const indexByName = new Map(groups.map((group, index) => [group?.name || '', index]))
   return [...groups]
-    .map((group, originalIndex) => ({ group, originalIndex }))
+    .map((group, originalIndex) => {
+      // 「山东-济南」这类省内分组紧跟在「山东」后面（同省的子分组之间保持来源顺序）
+      const parent = indexByName.get(provinceOfSubgroup(group?.name))
+      return { group, originalIndex: parent === undefined ? originalIndex : parent + (originalIndex + 1) / (groups.length + 1) }
+    })
     .sort((a, b) => {
       const nameA = a.group?.name || ''
       const nameB = b.group?.name || ''
@@ -573,6 +585,11 @@ export function applyConfig(groups, config) {
         if (direct === -1 && name === '抖音') {
           const bilibili = config.groupOrder.indexOf('B站')
           if (bilibili !== -1) return bilibili + 0.5
+        }
+        // 「山东-济南」这类省内分组没记录过时跟在该省后面（同值靠稳定排序保持默认顺序）
+        if (direct === -1 && provinceOfSubgroup(name)) {
+          const province = config.groupOrder.indexOf(provinceOfSubgroup(name))
+          if (province !== -1) return province + 0.5
         }
         return direct
       }

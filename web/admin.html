@@ -3045,6 +3045,19 @@
         .extractor-category-btn .attention-dot { margin-left: 0; }
         .category-note { padding: 1px 4px; border-radius: 4px; background: var(--ui-warning-soft); color: var(--ui-warning); font-weight: 500; }
         .extractor-filter-empty { padding: 22px; border: 1px dashed var(--ui-line-strong); border-radius: 12px; background: var(--ui-surface-soft); color: var(--ui-muted); font-size: 13px; }
+        /* 免账号小节的地区面板：收起时横排成小块，展开的那个占满整行、下面铺开同一套卡片网格 */
+        .region-panel-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; margin-top: 14px; }
+        .region-panel.open { grid-column: 1 / -1; }
+        .source-grid + .region-panel-list { margin-top: 18px; }
+        .region-panel { border: 1px solid var(--ui-line); border-radius: 12px; background: var(--ui-surface); }
+        .region-panel-head { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 10px; width: 100%; padding: 13px 16px; border: 0; border-radius: 12px; background: none; color: var(--ui-text); font: inherit; text-align: left; cursor: pointer; }
+        .region-panel-head:hover { background: var(--ui-surface-soft); }
+        .region-panel-caret { display: inline-block; width: 12px; color: var(--ui-muted); transition: transform .16s ease; }
+        .region-panel.open .region-panel-caret { transform: rotate(90deg); }
+        .region-panel-name { font-weight: 600; }
+        .region-panel-meta { color: var(--ui-muted); font-size: 13px; }
+        .region-panel-head .attention-dot { margin-left: 0; }
+        .region-panel > .source-grid { padding: 4px 14px 14px; }
         .source-grid { grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 14px; }
         .source-card,
         .external-nav-item {
@@ -4824,7 +4837,7 @@
                                 <strong>当前版本</strong>
                             </div>
                             <div class="about-version-body">
-                                <span id="versionText">v4.46.0</span>
+                                <span id="versionText">v4.49.1</span>
                                 <button class="btn btn-sm" onclick="checkUpdate()" id="checkUpdateBtn">检查更新</button>
                             </div>
                             <div id="updateInfo" class="about-update-info" style="display: none;"></div>
@@ -5510,6 +5523,27 @@
             // 存储不可用只会失去「记住分类」，默认看第一类
         }
 
+        // 免账号小节按地区收面板（作者 10-24）：七十多个模块里地方台占大半，同省的省台、地市台、
+        // 景观收进一个面板，以后再加地市模块直接进去。展开了哪些地区记在本机浏览器里，默认全收起。
+        const extractorOpenRegions = new Set();
+        try {
+            const saved = JSON.parse(localStorage.getItem('iptv-extractor-open-regions') || '[]');
+            if (Array.isArray(saved)) saved.forEach(region => extractorOpenRegions.add(String(region)));
+        } catch (e) {
+            // 存储不可用只会失去「记住展开」，默认全收起
+        }
+
+        function toggleExtractorRegion(region) {
+            if (extractorOpenRegions.has(region)) extractorOpenRegions.delete(region);
+            else extractorOpenRegions.add(region);
+            try {
+                localStorage.setItem('iptv-extractor-open-regions', JSON.stringify([...extractorOpenRegions]));
+            } catch (e) {
+                // 同上，不影响本次展开
+            }
+            renderExtractors();
+        }
+
         function setExtractorCategory(id, render = true) {
             extractorCategory = String(id || 'account');
             extractorFilterHold.clear();
@@ -6143,6 +6177,38 @@
                 </button>`;
             }).join('');
             const activeModules = shown.filter(m => categoryOf(m) === active.id);
+
+            // 免账号小节：模块按面板收（省级地区，或国际、直播中国这类专题；只有一个模块的也收，
+            // 统一样式，以后加模块直接进来），不归面板的平铺在前。面板标题的数量和红点按整个地区算，不跟筛选走；
+            // 「已启用 / 已关闭」筛选时有命中的面板自动展开，不然筛完还得一个个点开看。
+            const modulesHtml = list => {
+                const grid = items => `<div class="source-grid">${items.map(m => moduleCardHtml(m, active)).join('')}</div>`;
+                if (active.id !== 'standard') return grid(list);
+                const loose = list.filter(m => !m.region);
+                // 专题面板（国际、直播中国、iPanda）在前，各省面板在后；同类里按注册表顺序
+                const regions = [...new Set([
+                    ...list.filter(m => m.region && !m.regionIsArea),
+                    ...list.filter(m => m.region && m.regionIsArea),
+                ].map(m => m.region))];
+                const panels = regions.map(region => {
+                    const members = list.filter(m => m.region === region);
+                    const all = modules.filter(m => categoryOf(m) === active.id && m.region === region);
+                    const open = extractorFilter !== 'all' || extractorOpenRegions.has(region);
+                    const alerting = all.some(needsAttention);
+                    return `<section class="region-panel${open ? ' open' : ''}">
+                        <button type="button" class="region-panel-head" aria-expanded="${open}"
+                                data-region="${escapeHtml(region)}" onclick="toggleExtractorRegion(this.dataset.region)">
+                            <span class="region-panel-caret" aria-hidden="true">›</span>
+                            <span class="region-panel-name">${escapeHtml(region)}</span>
+                            <span class="region-panel-meta">${all.length} 个模块 · 已开 ${all.filter(m => m.enabled).length}</span>
+                            ${alerting ? '<span class="attention-dot" role="img" aria-label="有模块需要处理"></span>' : ''}
+                        </button>
+                        ${open ? grid(members) : ''}
+                    </section>`;
+                }).join('');
+                return `${loose.length ? grid(loose) : ''}${panels ? `<div class="region-panel-list">${panels}</div>` : ''}`;
+            };
+
             box.innerHTML = `<div class="extractor-category-bar" role="tablist" aria-label="模块分类">${categoryBar}</div>
                 <section class="source-category" role="tabpanel">
                     <div class="source-category-head">
@@ -6150,7 +6216,7 @@
                             ? escapeHtml(part) : `<mark class="category-note">${escapeHtml(part.mark)}</mark>`).join('')}</div>
                     </div>
                     ${activeModules.length
-                        ? `<div class="source-grid">${activeModules.map(m => moduleCardHtml(m, active)).join('')}</div>`
+                        ? modulesHtml(activeModules)
                         : `<div class="extractor-filter-empty">${extractorFilter === 'on'
                             ? '这一类的模块都关着。切到「已关闭」或「全部」，勾选「启用」即可打开。'
                             : '这一类没有关闭的模块。'}</div>`}

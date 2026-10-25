@@ -997,12 +997,35 @@ try {
     for (const id of ['bilibili-live', 'huya-live', 'douyu-live']) {
       assert.equal(modules.find(module => module.id === id)?.category, 'live', `${id} 应归入网络直播平台`)
     }
-    // 「海外」小节就是默认关、由用户自己打开的那几个，两边不能各说各的
+    // 默认关、由用户自己打开的：「海外」小节那几个，加上频道量大、只有本地少数人看的山东市县（#196 作者拍板）
+    // 和市县台的各省模块（guangdianyun-*，同样作者拍板）
     assert.deepEqual(
-      modules.filter(module => module.category === 'overseas').map(module => module.id).sort(),
       listModules().filter(module => module.defaultEnabled === false).map(module => module.id).sort(),
+      [
+        ...modules.filter(module => module.category === 'overseas').map(module => module.id),
+        'shandong-counties',
+        ...modules.filter(module => module.id.startsWith('guangdianyun-')).map(module => module.id),
+      ].sort(),
     )
     assert.deepEqual(modules.filter(module => module.category === 'overseas').map(module => module.id).sort(), ['overseas', 'tdm'])
+  })
+
+  check('模块地区透传给后台：省台、地市台、景观归到同一地区，全国性的不归', () => {
+    const regionOf = Object.fromEntries(newManager().getState().modules.map(module => [module.id, module.region]))
+    for (const id of ['iqilu', 'qingdao', 'qtv', 'shandong-counties']) assert.equal(regionOf[id], '山东', id)
+    for (const id of ['kankanews', 'songjiang']) assert.equal(regionOf[id], '上海', id)
+    for (const id of ['fengshows', 'hkstv']) assert.equal(regionOf[id], '香港', id)
+    // 专题面板：作者 10-24 定名
+    assert.equal(regionOf['asian-live'], '国际')
+    assert.equal(regionOf.livechina, '直播中国')
+    assert.equal(regionOf.ipanda, 'iPanda')
+    for (const id of ['yangshipin', 'overseas']) assert.equal(regionOf[id], '', id)
+    const state = newManager().getState().modules
+    assert.equal(state.find(module => module.id === 'iqilu').regionIsArea, true)
+    assert.equal(state.find(module => module.id === 'livechina').regionIsArea, false)
+    for (const module of listModules()) {
+      if (module.region !== undefined) assert.ok(typeof module.region === 'string' && module.region.trim(), `${module.id} 的 region 要是非空名字`)
+    }
   })
 
   check('注册表允许的每个分类，后台源管理都有对应的小节（漏了的话那类卡片整片不显示）', () => {
@@ -1031,9 +1054,13 @@ try {
       '用户明确保存的关闭态不能被默认值覆盖')
   })
 
-  check('★ 海外频道、澳门默认关闭，用户打开后保持打开；没点过的开关不落盘', () => {
+  check('★ 海外频道、澳门、山东市县、市县台默认关闭，用户打开后保持打开；没点过的开关不落盘', () => {
     const optIn = listModules().filter(module => module.defaultEnabled === false).map(module => module.id)
-    assert.deepEqual(optIn.sort(), ['overseas', 'tdm'], '默认关的只有面向海外的这两个；新增要想清楚')
+    const gdy = optIn.filter(id => id.startsWith('guangdianyun-'))
+    assert.ok(gdy.length >= 20, '市县台各省模块都默认关闭')
+    assert.equal(listModules().filter(module => module.id.startsWith('guangdianyun-')).length, gdy.length)
+    assert.deepEqual(optIn.filter(id => !id.startsWith('guangdianyun-')).sort(), ['overseas', 'shandong-counties', 'tdm'],
+      '默认关的只有面向海外的两个、山东市县和市县台各省；新增要想清楚')
     const manager = newManager(undefined, { modules: {}, masterSwitchRetired: true })
     for (const id of optIn) assert.equal(manager.isModuleEnabled(getModule(id)), false, id)
     manager.setModuleEnabled('overseas', true)
@@ -1363,6 +1390,32 @@ try {
     const fallback = manager.getValidChannels()
     assert.deepEqual(fallback.map(group => group.name), ['江苏', '辽宁', '上海'])
     assert.deepEqual(fallback[2].dataList.map(channel => channel.deferredRef), ['651632657', '617290047'])
+  })
+
+  check('输出：打头频道排到同组模块频道最前，多个时保持原顺序，不改变分组位置', () => {
+    const manager = newManager()
+    manager.setModuleEnabled('shandong-counties', true)
+    manager.cache.modules['shandong-counties'] = {
+      groups: [
+        { name: '山东-济南', dataList: [{ name: '长清综合', deferredRef: 'sdcounty-171-2' }] },
+        { name: '山东-菏泽', dataList: [
+          { name: '牡丹区新闻综合', deferredRef: 'sdcounty-219-6' },
+          { name: '定陶综合', deferredRef: 'sdcounty-27-7' },
+        ] },
+      ],
+      health: { status: 'ok' },
+    }
+    manager.setModuleEnabled('guangdianyun-shandong', true)
+    manager.cache.modules['guangdianyun-shandong'] = {
+      groups: [{ name: '山东-菏泽', dataList: [
+        { name: '菏泽一套', deferredRef: 'gdy-3492-4042', leading: true },
+        { name: '菏泽二套', deferredRef: 'gdy-3493-4042', leading: true },
+      ] }],
+      health: { status: 'ok' },
+    }
+    const groups = manager.getValidChannels()
+    assert.deepEqual(groups.map(group => group.name), ['山东-济南', '山东-菏泽'])
+    assert.deepEqual(groups[1].dataList.map(channel => channel.name), ['菏泽一套', '菏泽二套', '牡丹区新闻综合', '定陶综合'])
   })
 
   check('抓取失败时沿用上一轮频道——频道不能静默从播放列表消失', () => {
@@ -2028,23 +2081,27 @@ const huyaTwoLineHtml = `
 
 const huyaManifest = '#EXTM3U\n#EXT-X-VERSION:3\n#EXT-X-MEDIA-SEQUENCE:10\n#EXT-X-TARGETDURATION:4\n#EXTINF:3.0,\nabc_2000-1.ts?x=1\n#EXTINF:3.0,\nabc_2000-2.ts?x=1\n'
 
-// 按主机路由的假上游：房间页回 html；各线路清单/分片按 rules 回状态码，并记录请求次数
+// 按主机路由的假上游：房间页回 upstream.html（可中途换）；各线路清单/分片按 rules 回状态码
+// （数组=按次序逐个回、最后一个一直回），并记录请求次数与每次清单请求的地址
 function huyaUpstream(html, rules = {}) {
-  const hits = { page: 0, manifest: {}, segment: {} }
-  const fetchImpl = async raw => {
+  const hits = { page: 0, manifest: {}, segment: {}, manifestUrls: [] }
+  const statusOf = rule => (Array.isArray(rule) ? (rule.length > 1 ? rule.shift() : rule[0]) : rule) ?? 200
+  const upstream = { html, rules, hits }
+  upstream.fetchImpl = async raw => {
     const url = new URL(String(raw))
     const respond = (status, text) => ({ ok: status === 200, status, url: url.href, text: async () => text, body: null })
-    if (url.hostname === 'www.huya.com') { hits.page++; return respond(200, html) }
+    if (url.hostname === 'www.huya.com') { hits.page++; return respond(200, upstream.html) }
     const line = url.hostname.split('.')[0].toUpperCase()
     if (url.pathname.endsWith('.m3u8')) {
       hits.manifest[line] = (hits.manifest[line] || 0) + 1
-      const status = rules[line]?.manifest ?? 200
+      hits.manifestUrls.push(url.href)
+      const status = statusOf(upstream.rules[line]?.manifest)
       return respond(status, status === 200 ? huyaManifest : '<html>403 Forbidden</html>')
     }
     hits.segment[line] = (hits.segment[line] || 0) + 1
-    return respond(rules[line]?.segment ?? 200, '')
+    return respond(statusOf(upstream.rules[line]?.segment), '')
   }
-  return { fetchImpl, hits }
+  return upstream
 }
 
 await checkAsync('虎牙：模块抓取赛事卡片，播放时才刷新签名、取回清单并要求清单中继', async () => {
@@ -2112,6 +2169,48 @@ await checkAsync('虎牙：全部线路被拒时回失败，10 秒内不再替�
   assert.deepEqual(upstream.hits.manifest, { AL: 2, TX: 2, HS: 2 }, '连续第二次全线失败后间隔翻倍到 20 秒')
   await resolveHuyaRoom('huya-660101', { now: 1700000012000 + 21 * 1000, config, fetchImpl: upstream.fetchImpl })
   assert.deepEqual(upstream.hits.manifest, { AL: 3, TX: 3, HS: 3 })
+})
+
+await checkAsync('虎牙：签名地址跨房间页刷新一直复用，到期的签名被拒先重签一次，没到期的签名被拒直接换线，主播重开才签新的', async () => {
+  clearHuyaResolveCache()
+  const config = resolveConfig(huya, {})
+  // 测试房间页的 wsTime 是 0x6553f100 = t0：签名在 t0 到期
+  const withWsTime = hex => huyaTwoLineHtml.replaceAll('6553f100', hex)
+  const t0 = 1700000000000 - 10 * 60 * 1000
+  const upstream = huyaUpstream(withWsTime('6553f100'))
+  const seqidOf = url => new URL(url).searchParams.get('seqid')
+  const first = await resolveHuyaRoom('huya-660101', { now: t0, config, fetchImpl: upstream.fetchImpl })
+  assert.match(first.url, /^https:\/\/al\.hls\.huya\.com\//)
+  for (const minute of [1, 2, 3, 4]) {
+    const again = await resolveHuyaRoom('huya-660101', { now: t0 + minute * 61 * 1000, config, fetchImpl: upstream.fetchImpl })
+    assert.equal(again.url, first.url, `第 ${minute} 次刷新房间页后签名地址不变（每分钟重签会触发 CDN 整条线路 403）`)
+  }
+  assert.equal(upstream.hits.page, 5, '房间页每 60 秒刷新一次')
+  assert.deepEqual(upstream.hits.segment, { AL: 1 }, '复用的签名不再探分片')
+
+  // 签名过了 wsTime 被拒一次：用最新房间页（wsTime 已往后推）重签后放行，留在同一线路
+  upstream.html = withWsTime((0x6553f100 + 600).toString(16))
+  upstream.rules.AL = { manifest: [403, 200] }
+  const resigned = await resolveHuyaRoom('huya-660101', { now: t0 + 10 * 60 * 1000 + 5000, config, fetchImpl: upstream.fetchImpl })
+  assert.match(resigned.url, /^https:\/\/al\.hls\.huya\.com\//, '重签后仍是 AL 线路')
+  assert.notEqual(seqidOf(resigned.url), seqidOf(first.url), '重签换了 seqid')
+  assert.equal(new URL(resigned.url).searchParams.get('wsTime'), (0x6553f100 + 600).toString(16), '重签用的是最新房间页的 wsTime')
+  assert.deepEqual(upstream.hits.segment, { AL: 2 }, '刚签出来的地址先探一片分片')
+  assert.equal(upstream.hits.manifest.TX, undefined, '没有去碰别的线路')
+  const held = await resolveHuyaRoom('huya-660101', { now: t0 + 10 * 60 * 1000 + 8000, config, fetchImpl: upstream.fetchImpl })
+  assert.equal(held.url, resigned.url, '重签后的地址继续复用')
+
+  // 离到期还早的签名又被拒：是线路在拒这个出口，不再重签（AL 有过「首取放行、再取就拒」，重签只会抖），直接换线
+  upstream.rules.AL = { manifest: 403 }
+  const switched = await resolveHuyaRoom('huya-660101', { now: t0 + 12 * 60 * 1000, config, fetchImpl: upstream.fetchImpl })
+  assert.match(switched.url, /^https:\/\/tx\.hls\.huya\.com\//, 'AL 没到期的签名被拒，换到 TX')
+  assert.equal(upstream.hits.manifest.AL, 9, '没到期的签名被拒不重签，只多打一次就放弃 AL')
+
+  // 主播重开（流名变了）：旧签名作废，签新的
+  upstream.html = upstream.html.replaceAll('"sStreamName":"abc"', '"sStreamName":"abd"')
+  const restarted = await resolveHuyaRoom('huya-660101', { now: t0 + 13 * 60 * 1000, config, fetchImpl: upstream.fetchImpl })
+  assert.match(restarted.url, /^https:\/\/tx\.hls\.huya\.com\/src\/abd\.m3u8\?/, '新流名签新地址')
+  assert.notEqual(seqidOf(restarted.url), seqidOf(switched.url))
 })
 
 check('虎牙：线路排序与分片地址解析', () => {

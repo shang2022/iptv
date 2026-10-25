@@ -26,7 +26,7 @@ import { createHash } from "node:crypto"
 import { writeJsonFileSync } from "./fileUtil.js"
 import { dataPath } from "./paths.js"
 import { sanitizeOpts } from "./channelOpts.js"
-import { listModules, getModule, sourceIdOf } from "../extractors/registry.js"
+import { listModules, getModule, sourceIdOf, moduleRegion, REGION_NAMES } from "../extractors/registry.js"
 import { printBlue, printGreen, printRed, printYellow } from "./colorOut.js"
 import { enableExtractors } from "../config.js"
 
@@ -720,6 +720,10 @@ class ExtractorManager {
         description: module.description || '',
         // 源管理据此分区；老模块不声明时归入免账号的普通模块。
         category: module.category || 'standard',
+        // 源管理把同一地区的模块收进一个面板（见 registry.js 的 region）
+        region: moduleRegion(module),
+        // 专题面板（国际、直播中国…）排在各省面板前面，后台据此区分
+        regionIsArea: REGION_NAMES.has(moduleRegion(module)),
         // 后台据此在卡片里多渲染一块辅助 UI（具体 markup 在 admin.html）
         helper: module.helper || '',
         // 助手挂在哪一段（不声明就渲染在表单最上面，咪咕就是这样）
@@ -1183,6 +1187,16 @@ class ExtractorManager {
     for (const { name, entry } of supplements) {
       if (!groupMap.has(name)) groupMap.set(name, { name, dataList: [] })
       groupMap.get(name).dataList.push(entry)
+    }
+    // 打头频道（channel.leading，如市县台并进「山东-淄博」的淄博新闻综合）排到组内最前：
+    // 地市分组由区县台模块先建好（定地市顺序），市台却来自后面的模块，照常追加会落到组尾
+    for (const group of groupMap.values()) {
+      if (group.dataList.some(channel => channel.leading === true)) {
+        group.dataList = [
+          ...group.dataList.filter(channel => channel.leading === true),
+          ...group.dataList.filter(channel => channel.leading !== true),
+        ]
+      }
     }
     return [...groupMap.values()]
   }

@@ -59,6 +59,27 @@
 | `gxtv` | 广西 | 已接入 | 6/7 | 2 | api2019.gxtv.cn/memberApi/programList/selectListByChannelId | POST，实际按频道名查；只给开始时间与时长；广西移动官方不展示节目单 |
 | `quanzhou-minnan` | 泉州 | 已接入 | 2/2 | 1 | wxqz2.qztv.cn（备 www.qztv.cn、control-center.qztv.cn）新闻综合、闽南语播放页 | 服务端渲染的节目表，完整日期标签给最近七天到今天、没有明天；每档有起止时间，末档结束写次日时刻；三个域名同一源站、各挂一套阿里云 WAF，偶发人机验证，三个都被拦本轮就没有 |
 | `quanzhou-county` | 晋江、石狮 | 已接入 | 1/2 | 2 | 两台官网直播页的云直播接口 cloudlive-manage-mapi/api/topic/program/list（mapi.ijjnews.com、mapi-new.chinashishi.net），app_secret 写在官网页面脚本里 | 与福建省级同一平台，star/end 是 unix 秒；石狮今明两天真编排、07:00 起，偶有全空格标题的空档条目丢掉；晋江天天只有 24 条整点「精彩节目」占位，当官方没发；照样每轮去取，哪天官方真排了就自动有；两台都是直链，按名对上 |
+| `guangdianyun-beijing` | 市县台·北京 | 已接入 | 0/1 | 2 | programme.guangdianyun.tv/v1/programme/Index/getListByChannel?channelId&uin&date | 广电云官网播放页同一接口，免登录；每条只有当天 HH:MM:SS，按上海日期拼，结束不大于开始按跨午夜；濮阳新闻综合整点「节目回放」是回看占位丢掉；表为空的台当官方没发，照样每轮去取；各省「慢直播」是固定机位，不去取。20 个省份模块共用这一套，下面各行只列各省覆盖。本省官方表目前全空 |
+| `guangdianyun-heilongjiang` | 市县台·黑龙江 | 已接入 | 2/2 | 2 | 同上 | 同上（市县台·北京）；有节目：大庆新闻综合、大庆教育 |
+| `guangdianyun-liaoning` | 市县台·辽宁 | 已接入 | 1/2 | 2 | 同上 | 同上（市县台·北京）；有节目：金普新闻综合 |
+| `guangdianyun-hebei` | 市县台·河北 | 已接入 | 0/3 | 2 | 同上 | 同上（市县台·北京）；本省官方表目前全空 |
+| `guangdianyun-shanxi` | 市县台·山西 | 已接入 | 1/7 | 2 | 同上 | 同上（市县台·北京）；有节目：曲沃新闻综合 |
+| `guangdianyun-shandong` | 市县台·山东 | 已接入 | 0/3 | 2 | 同上 | 同上（市县台·北京）；本省官方表目前全空 |
+| `guangdianyun-anhui` | 市县台·安徽 | 已接入 | 0/7 | 2 | 同上 | 同上（市县台·北京）；本省官方表目前全空 |
+| `guangdianyun-henan` | 市县台·河南 | 已接入 | 2/8 | 2 | 同上 | 同上（市县台·北京）；有节目：濮阳新闻综合、濮阳公共 |
+| `guangdianyun-hubei` | 市县台·湖北 | 已接入 | 3/21 | 2 | 同上 | 同上（市县台·北京）；有节目：黄石新闻综合、黄石都市、阳新综合 |
+| `guangdianyun-hunan` | 市县台·湖南 | 已接入 | 5/14 | 2 | 同上 | 同上（市县台·北京）；有节目：长沙新闻综合、长沙政法、株洲新闻综合、株洲公共、长沙文旅 |
+| `guangdianyun-jiangxi` | 市县台·江西 | 已接入 | 0/1 | 2 | 同上 | 同上（市县台·北京）；本省官方表目前全空 |
+| `guangdianyun-jiangsu` | 市县台·江苏 | 已接入 | 0/3 | 2 | 同上 | 同上（市县台·北京）；本省官方表目前全空 |
+| `guangdianyun-zhejiang` | 市县台·浙江 | 已接入 | 6/25 | 2 | 同上 | 同上（市县台·北京）；有节目：富阳新闻综合、临平新闻、奉化新闻综合、安吉新闻综合、兰溪新闻综合、临安电视台 |
+| `guangdianyun-fujian` | 市县台·福建 | 已接入 | 4/13 | 2 | 同上 | 同上（市县台·北京）；有节目：福清综合、泉港一套、永春综合、集美综合 |
+| `guangdianyun-guangdong` | 市县台·广东 | 已接入 | 1/2 | 2 | 同上 | 同上（市县台·北京）；有节目：信宜综合 |
+| `guangdianyun-guangxi` | 市县台·广西 | 已接入 | 0/3 | 2 | 同上 | 同上（市县台·北京）；本省官方表目前全空 |
+| `guangdianyun-guizhou` | 市县台·贵州 | 已接入 | 0/2 | 2 | 同上 | 同上（市县台·北京）；本省官方表目前全空 |
+| `guangdianyun-sichuan` | 市县台·四川 | 已接入 | 0/3 | 2 | 同上 | 同上（市县台·北京）；本省官方表目前全空 |
+| `guangdianyun-xinjiang` | 市县台·新疆 | 已接入 | 3/5 | 2 | 同上 | 同上（市县台·北京）；有节目：阿克苏汉语综合、阿克苏维语综合、阿克苏党员教育 |
+| `guangdianyun-hainan` | 市县台·海南 | 已接入 | 0/1 | 2 | 同上 | 同上（市县台·北京）；本省官方表目前全空 |
+| `shandong-counties` | 山东市县 | 已接入 | 1/224 | 2 | app.litenews.cn/v1/app/play/tv/program?orgid&channelid&time | 闪电新闻融媒平台同一接口，免登录；time 是 unix 秒，落在哪天给哪天，没排回「不存在的节目单」；不带 time 会退回最近一份同星期几的旧编排（多数停在 2022～2026 年间），所以只认 data.date 正好是那天的；每条只有当天 HH:MM:SS，结束不大于开始按跨午夜；当时只有崂山频道排了当天起往后几天，其余台照样每轮去取 |
 | `putian` | 莆田 | 已接入 | 2/3 | 2 | mapi.ptbtv.com/api/v1/program.php | 官网直播页与莆田TV App 同款，和厦门同一套 M2O 接口，按 channel_id 与 zone（相对服务器今天的天数）取，不用签名；和取流一样挂在网宿人机验证后面，浏览器 UA 回挑战页，用 Node 自己的 UA；start_time 是 unix 秒、toff 是时长，首尾相接；一套、二套每天 06:00 起真编排，往后排了三四天；仙游电视台天天 24 条整点「精彩节目」占位，当官方没发，照样每轮去取 |
 | `ningde` | 宁德 | 无官方节目单 | — | — | — | 分享页节目单组件调的 Live/getProgram 昨今明三天全是 24 条整点「精彩节目」占位，页面自己也把节目名写死成「精彩节目」；海博地市台同样只有占位；央视网试过 ningde / ningde1 都是 params error |
 | `fjtv` | 福建 | 已接入 | 9 路 | 2 | 省级 mapi-plus.fjtv.net 云直播 program/list；厦门 mapi1.kxm.xmtv.cn/api/v1/program.php；福州 app.zohi.tv/video/player/playbill | 东南卫视、厦视三套、海博地市只有占位；福州只列自办栏目、只有今天，少儿不收 |
