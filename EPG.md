@@ -28,6 +28,8 @@
 
 状态只用这几种：**已接入**（模块挂了 `epg`）、**咪咕自带**、**无官方节目单**（调研过，官方没有可用的）、**不适用**（直播间、景观机位这类本来就没有节目单）、**未调研**。
 
+江门综合因官方直播 CDN 持续返回 502，于 2026-10-27 暂时移除，当前不参与频道输出与节目单聚合；解析文件保留供恢复。
+
 2026-09-25 第二轮接入后本地一轮完整更新：模块节目单补上 146 个频道，全部频道中有节目单的 223 个（当时还含后来移除的大爱、GOOD TV 共 4 路；其后接入的陕西、天津、北京、甘肃卫视、延边卫视、宁夏、澳门莲花卫视、泉州未计入）。
 
 <!-- epg-status:start -->
@@ -94,6 +96,7 @@
 | `hangzhou` | 杭州 | 无官方节目单 | — | — | — | 葫芦网看电视页内嵌的节目表全天是 24 条整点「精彩节目」占位（页面切日期用的 /m2o/program_switch.php 回空），频道接口的 cur_program 同样是「精彩节目」、use_self_program 为 0；mapi.hoolo.tv 上试过 program.php、program_list.php、channel_program.php 都被 openresty 403；央视网试过 hangzhou / hangzhou1 / hztv / hztv1 / xihumingzhu 都是 params error，央视频、咪咕也没收 |
 | `ningbo` | 宁波 | 无官方节目单 | — | — | — | 宁波广电网的「电视节目单」是每周一篇文章，节目表是一套、二套两张图片（没有三套、四套），没有可读的数据；频道资料 JSONP 只有地址；央视网 nbtv1–nbtv5 有数据，但每天一模一样（9 月 1 日与 10 月 6 日逐条相同），还是「看看看」「汇市直通车」这些旧栏目，和官方本周节目表对不上（官方 7:05 宁波新闻重播、18:30 看点），是冻结模板，不用 |
 | `jiaxing` | 嘉兴 | 无官方节目单 | — | — | — | 趣看播放器的节目表接口 qukanvideo.com/h5/channel/view/item/list?liveId=&day= 只有已播出的日子有数据（且多为「无版权」时段块），今天、明天都是空数组，和辽宁北斗一样只是回看列表；央视网试过 jiaxing / jiaxing1 / jxtv 都是 params error，央视频、咪咕也没收 |
+| `zhejiang-local` | 浙江地方台 | 无官方节目单 | — | — | 官方趣看 H5 channel/view/item/list | 2026-10-28 实测今明两天：东阳均为「普通节目」占位；衢江、江山均为空，不把占位或空表当节目单 |
 | `taizhou` | 台州（天台和合） | 无官方节目单 | — | — | — | 和合天台 App 的看电视页只提供直播入口及栏目回看；趣看官方播放器今明两天均显示暂无数据，channel/view/item/list?liveId=1783497905770300&day= 的两天响应均为空数组；央视网 tiantai、tiantai1、tttv 返回 params error，所查央视频、咪咕公开目录未收录 |
 | `shaoxing` | 绍兴 | 已接入 | 3/3 | 2 | app.shaoxing.com.cn/video/player/playbill | 官网直播播放器公开接口，stream_id 为 78、75、74，start_time / end_time 为上海日期的 Unix 秒区间；已核验今明两天有真实编排，starttime / endtime 为秒级起止时间，过滤节目预告、宣传包装和「精彩节目」占位，按频道 ref 精确匹配 |
 | `jstv` | 江苏 | 已接入 | 10/10 | 1 | live-lizhi.jstv.com/api/Channel/Epg | 匿名 JWT；频道要用导航里的 extraId |
@@ -103,14 +106,13 @@
 | `yangzhou` | 扬州 | 已接入 | 4/4 | 2 | vapp.96189.com/setsail/external/externalService?service=getProgramList | 扬州发布 App H5 频道页同款，params 是 JSON（channelId、起止 yyyyMMddHHmmss 北京时间）；按「与当天有重叠」返回，会带前一天跨零点的那档，按开始时间筛；开播前不到一分钟的国歌丢掉；明天排到傍晚、后天为空 |
 | `iqilu` | 山东 | 已接入 | 9/9 | 2 | sdxw.iqilu.com/v1/app/play/program/qilu | 闪电新闻后端，频道号 24–32（不是 _pdCid） |
 | `sztv` | 深圳 | 已接入 | 6/7 | 1 | hls-api.sztv.com.cn/api/getEpgs | 深圳少儿官方为空 |
-| `jiangmen` | 江门 | 已接入 | 1/1 | 2 | db.jmtv.cn/epg/4x3T0dO.json | 官网 liveList.jsonpCallback JSONP 数据，严格解析不执行；保留具体剧名与集数、官方起止时间，按 ref 对应，排除占位，不提供历史回看 |
 | `meizhou-hakka` | 梅州 | 无官方节目单 | — | — | — | hellohakka.cn 网页端（kan0512 融媒 App 壳）没有节目单页；接口 mzxjapi.hellohakka.cn/api/app/channel/static/list 在网页代码里只有地址、没有调用，裸请求回「必传参数不正确」，参数只在原生 App 里，不再往下拆；央视网试过 meizhou / meizhou1 都是 params error，央视频、咪咕也没收 |
 | `njtv` | 南京 | 已接入 | 4 路电视 | 2 | apigateway.nbs.cn/Liveprogram/getEPGByTaskId | 直链频道，按名对上；13 路机位不适用 |
 | `nmtv` | 内蒙古 | 无官方节目单 | — | — | — | broadcast/programs 只维护广播，电视频道停在 2023 年；央视网有蒙语台（代号 neimenggu2）但连日为空，内蒙古卫视由咪咕 / 央视频覆盖 |
 | `shanxi` | 山西 | 已接入 | 9/16 | 2 | apphhplushttps.sxrtv.com/epg/{key}.json | JSONP；7 个地市台官方文件为空；末档拉到次日早上的按下一档截断 |
 | `shaanxi` | 陕西 | 已接入 | 8/8 | 1 | qidian.sxtvs.com/api/v3/program/tv?channel={key} | 只给服务器当天、只有 HH:mm，按响应 Date 头认日期；同一时刻两条留后一条；末档 23:59 接到 24:00 |
 | `tianjin` | 天津 | 已接入 | 7/7 | 2 | jyapi2.wisetv.com.cn:8684/v3/tv/programs/show/{起}/{止}/{频道ID} | 与取流共用津云 App 内置的 ak/sk 头；区间最远到后天；明天上午起是编排计划，三小时切段与零点切段合回一条、去掉「30’」类时长批注 |
-| `qinghai` | 青海 | 已接入 | 1/4 | 2 | api.cntv.cn/epg/getEpgInfoByChannelNew?c=qinghai | 云直播 program/list 对四路、任何日期（未来、频道建立之前）都即时生成 24 条整点「精彩节目」占位，每次请求 id 都是新的，与福建东南卫视同一平台同一情况；青海卫视取央视网（央视频也有），经济生活、都市、安多卫视央视网与央视频都没收 |
+| `qinghai` | 青海 | 已接入 | 1/6 | 2 | api.cntv.cn/epg/getEpgInfoByChannelNew?c=qinghai | 云直播 program/list 对四路、任何日期（未来、频道建立之前）都即时生成 24 条整点「精彩节目」占位，每次请求 id 都是新的，与福建东南卫视同一平台同一情况；青海卫视取央视网（央视频也有），经济生活、都市、安多卫视央视网与央视频都没收；新增格尔木 App 电视接口为全天「当日回放」占位，海东节目表为空，均没有真实编排，不接作节目单 |
 | `ningxia` | 宁夏 | 已接入 | 3/3 | 1 | api.ningxiahuangheyun.com/?mod=get_appdata&appid=nxtv-tv | 黄河云 App 页面配置，一次给三套（menu[].ename = nxws / nxgg / nxwl），秒级起止时间；只有今天，日期参数都不认；约 500KB，模块内缓存 10 分钟三套共用；宁夏卫视咪咕已有节目单，实际由咪咕给，黄河云补公共、文旅；每档带的官方回看地址没用 |
 | `xinjiang` | 新疆 | 已接入 | 6/7 | 2 | slstapi.xjtvs.com.cn/api/TVLiveV100/TVGuideList | 新疆少儿官方为空 |
 | `xizang` | 西藏 | 无官方节目单 | — | — | — | 珠峰云接口只给每台「正在播出」一条（卡片 date/enddate）；频道详情 videolive 的 ifschedule=0、节目列表全空，官网没有电视直播页。开着央视频时西藏卫视与它同名，共用央视频的节目单 |
@@ -123,7 +125,35 @@
 | `ipanda` | iPanda 官方直播 | 不适用 | — | — | — | 熊猫机位 |
 | `mgtv` | 湖南 | 无官方节目单 | — | — | — | 芒果各接口只给 2010→2050 的占位；getLivePlayBill 要机顶盒参数且没有数据 |
 | `overseas` | 海外频道 | 未调研 | — | — | — | 33 台来自 Samsung TV Plus、Plex、Rakuten TV、LG Channels、Xumo 等免费流媒体平台和 France 24、Arirang 官网，节目表在各平台自己的接口里，还没查 |
+| `inst-xjtu` | 西安交通大学 | 不适用 | — | — | zhibo.xjtu.edu.cn | 官方活动或独立视频回放；活动日期、预告与视频目录不是电视播出编排，不生成 EPG |
+| `inst-jlu` | 吉林大学 | 不适用 | — | — | tv.jlu.edu.cn | 官方活动或独立视频回放；活动日期、预告与视频目录不是电视播出编排，不生成 EPG |
+| `inst-chnmuseum` | 国家博物馆 | 不适用 | — | — | www.chnmuseum.cn | 官方活动或独立视频回放；活动日期、预告与视频目录不是电视播出编排，不生成 EPG |
+| `inst-shqyg` | 上海市群众艺术馆 | 不适用 | — | — | www.shqyg.com | 官方活动或独立视频回放；活动日期、预告与视频目录不是电视播出编排，不生成 EPG |
+| `inst-zjwhg` | 浙江省文化馆 | 不适用 | — | — | www.zjart.com | 官方活动或独立视频回放；活动日期、预告与视频目录不是电视播出编排，不生成 EPG |
+| `inst-culturecloud` | 国家公共文化云 | 不适用 | — | — | www.culturedc.cn | 官方活动或独立视频回放；活动日期、预告与视频目录不是电视播出编排，不生成 EPG |
+| `inst-fudan` | 复旦大学 | 不适用 | — | — | news.fudan.edu.cn | 官方活动或独立视频回放；活动日期、预告与视频目录不是电视播出编排，不生成 EPG |
+| `inst-bnu` | 北京师范大学 | 不适用 | — | — | video.bnu.edu.cn | 官方活动或独立视频回放；活动日期、预告与视频目录不是电视播出编排，不生成 EPG |
+| `inst-hust` | 华中科技大学 | 不适用 | — | — | www.hust.edu.cn | 官方活动或独立视频回放；活动日期、预告与视频目录不是电视播出编排，不生成 EPG |
+| `inst-gdwhg` | 广东省文化馆 | 不适用 | — | — | www.gdscc.cn | 官方活动或独立视频回放；活动日期、预告与视频目录不是电视播出编排，不生成 EPG |
+| `inst-hnwhg` | 湖南省文化馆 | 不适用 | — | — | hns-whg.cn | 官方活动或独立视频回放；活动日期、预告与视频目录不是电视播出编排，不生成 EPG |
+| `inst-gzdjy` | 广州大剧院 | 不适用 | — | — | gdm.gzdjy.org | 官方活动或独立视频回放；活动日期、预告与视频目录不是电视播出编排，不生成 EPG |
+| `inst-ccom` | 中央音乐学院 | 不适用 | — | — | video.ccom.edu.cn | 官方活动或独立视频回放；活动日期、预告与视频目录不是电视播出编排，不生成 EPG |
+| `inst-shlib` | 上海图书馆 | 不适用 | — | — | www.library.sh.cn | 官方活动或独立视频回放；活动日期、预告与视频目录不是电视播出编排，不生成 EPG |
+| `inst-cdstm` | 中国数字科技馆 | 不适用 | — | — | www.cdstm.cn | 官方活动或独立视频回放；活动日期、预告与视频目录不是电视播出编排，不生成 EPG |
+| `inst-stvf` | 上海电视节 | 不适用 | — | — | www.stvf.com | 官方活动或独立视频回放；活动日期、预告与视频目录不是电视播出编排，不生成 EPG |
+| `inst-siff` | 上海国际电影节 | 不适用 | — | — | www.siff.com | 官方活动或独立视频回放；活动日期、预告与视频目录不是电视播出编排，不生成 EPG |
+| `inst-zgc` | 中关村论坛 | 不适用 | — | — | www.zgcforum.com.cn | 官方活动或独立视频回放；活动日期、预告与视频目录不是电视播出编排，不生成 EPG |
+| `inst-shforum` | 上海论坛组委会 | 不适用 | — | — | shanghaiforum.fudan.edu.cn | 官方活动或独立视频回放；活动日期、预告与视频目录不是电视播出编排，不生成 EPG |
+| `inst-phillips` | 富艺斯 | 不适用 | — | — | www.phillips.com | 官方活动或独立视频回放；活动日期、预告与视频目录不是电视播出编排，不生成 EPG |
+| `inst-elb` | 易北爱乐音乐厅 | 不适用 | — | — | www.elbphilharmonie.de | 官方活动或独立视频回放；活动日期、预告与视频目录不是电视播出编排，不生成 EPG |
+| `inst-smartedu` | 国家智慧教育·高教课堂 | 不适用 | — | — | higher.smartedu.cn | 官方课堂实录点播；课程目录和时长不是电视编排 |
+| `inst-movie1905` | 1905电影活动 | 不适用 | — | — | www.1905.com | 官方完整活动回放；专题预告不是电视编排 |
+| `inst-weibo` | 微博官方活动 | 不适用 | — | — | weibo.com | 已核实账号的完整活动回放，无线性节目单 |
+| `inst-mgtv-events` | 芒果活动 | 不适用 | — | — | www.mgtv.com | 公开完整活动回放，不套用湖南电视台节目单 |
+| `bestv-fj` | 百视通 | 已接入 | 默认七路中的 5/7 | 2 | kylinapi.bbtv.cn/5g/v1/tv/programs/{id} | 官方跨日编排按北京时间筛选，今明两天共用一次请求；多彩文体4K、都市剧场、动漫秀场、东方财经、生活时尚有数据，乐游、法治天地为空；其余 57 路本模块不另取节目单，可复用同时启用的已有来源的同名节目单 |
 <!-- epg-status:end -->
+
+高校与场馆模块按机构提供活动直播及独立视频回放，不是全天线性电视频道。已检查的官方公开目录提供活动日期、预告、讲座／演出及回看条目，这些元数据不能当作今天或明天的电视节目单，因此 25 个模块均标“不适用”，不挂 `epg`，也不套用相近名称电视台的节目单。`[回放]` 标签表示官方录像，不代表支持 IPTV 的按时间回看查询。机构来源列表及权限限制见 [机构模块说明](extractors/institution/README.md)。
 
 ## 不做对外发布
 

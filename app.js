@@ -1,6 +1,7 @@
 import http from "node:http"
 import { localRequestHandlerFor, resolverFor, shutdownModules } from './extractors/registry.js'
 import { pipeFlv } from './utils/flvProxy.js'
+import { sendLocalMediaResponse } from './utils/localMediaResponse.js'
 import { readFileSync, mkdirSync, existsSync, statSync } from "node:fs"
 import { createRequire } from "node:module"
 import fetch from 'node-fetch'
@@ -215,6 +216,7 @@ const PLAYER_ASSETS = Object.freeze({
 })
 // 固定的品牌图标；与播放器资源一样支持密码前缀和反向代理子路径。
 const ICON_ASSETS = Object.freeze({
+  '/icon-512.png': ['icon-512.png', 'image/png'],
   '/favicon.ico': ['favicon.ico', 'image/x-icon'],
   '/favicon.svg': ['favicon.svg', 'image/svg+xml'],
   '/apple-touch-icon.png': ['apple-touch-icon.png', 'image/png'],
@@ -387,8 +389,8 @@ async function handleRequest(req, res) {
       printBlue("API: 获取系统配置")
       const result = getSystemConfigAPI()
       res.writeHead(200, { 'Content-Type': 'application/json;charset=UTF-8' });
-      // 附带 envOverrides（哪些项被环境变量控制）与 blankModeEnv（是否 mblank 空白模式），供前端提示；不影响表单字段读取
-      res.end(JSON.stringify(result.success ? { ...result.data, envOverrides: result.envOverrides || {}, blankModeEnv: !!result.blankModeEnv } : {}));
+      // 附带 envOverrides（哪些项被环境变量控制），供前端提示；不影响表单字段读取
+      res.end(JSON.stringify(result.success ? { ...result.data, envOverrides: result.envOverrides || {} } : {}));
       return
     }
 
@@ -584,7 +586,7 @@ async function handleRequest(req, res) {
       return
     }
 
-    // 消息推送渠道（utils/notify.js）：企微 / 飞书 / 钉钉 / Telegram / Bark / 通用 Webhook
+    // 消息推送渠道（utils/notify.js）：企微群机器人 / 企微应用 / 飞书 / 钉钉 / Telegram / Bark / 通用 Webhook
     if (routePath === '/api/notify' && method === 'GET') {
       const result = await getNotifyAPI()
       res.writeHead(result.success ? 200 : 500, { 'Content-Type': 'application/json;charset=UTF-8' });
@@ -1290,14 +1292,7 @@ async function handleRequest(req, res) {
       client: clientOf(req),
     })
     if (local) {
-      res.writeHead(local.status || 200, {
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Methods': 'GET, HEAD, OPTIONS',
-        'Access-Control-Allow-Headers': '*',
-        ...(local.headers || {}),
-      })
-      if (method === 'HEAD') res.end()
-      else res.end(local.body)
+      await sendLocalMediaResponse(res, method, local)
       return
     }
   }
@@ -1401,6 +1396,9 @@ async function handleRequest(req, res) {
     res.setHeader('Content-Type', interfaceObj.contentType);
     // 禁止客户端按内容嗅探覆盖声明的类型，确保飞牛/浏览器严格按 text/plain 当文本处理（与 GitHub raw 一致）
     res.setHeader('X-Content-Type-Options', 'nosniff');
+    // 允许网页端跨域读取订阅（与 GitHub raw 一致，issue #201 飞牛影视 URL 导入）：
+    // 在浏览器里取订阅的客户端缺这个头会被拦下；访问控制靠地址里的密码段，不靠来源
+    res.setHeader('Access-Control-Allow-Origin', '*');
     if (routeUrlPath == "/m3u" || routeUrlPath == "/interface.m3u") {
       res.setHeader('content-disposition', "inline; filename=\"interface.m3u\"");
     }
