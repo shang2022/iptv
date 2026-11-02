@@ -3199,7 +3199,7 @@
         .source-badge, .status-badge, .external-mode-badge, .mode-badge,
         .instant-badge, .login-state-badge, .channel-tag { padding: 2px 7px; border-radius: 5px; font-weight: 500; }
         .source-badge.builtin, .source-badge.account, .source-badge.live,
-        .source-badge.standard, .source-badge.overseas, .source-badge.institution,
+        .source-badge.standard, .source-badge.overseas,
         .external-mode-badge.fetch, .external-mode-badge.direct, .external-mode-badge.subscription,
         .mode-badge, .mode-badge.mode-direct, .mode-badge.mode-subscription {
             color: var(--ui-text-secondary);
@@ -4854,7 +4854,7 @@
                                 <strong>当前版本</strong>
                             </div>
                             <div class="about-version-body">
-                                <span id="versionText">v4.58.0</span>
+                                <span id="versionText">v4.60.0</span>
                                 <button class="btn btn-sm" onclick="checkUpdate()" id="checkUpdateBtn">检查更新</button>
                             </div>
                             <div id="updateInfo" class="about-update-info" style="display: none;"></div>
@@ -6103,12 +6103,6 @@
                     badge: '海外',
                     description: ['面向大陆以外的频道，默认关闭，需要时手动打开。', { mark: '能不能看取决于网络：海外频道由播放器直连，看播放设备；澳门等后续其他独立模块还要部署的机器能连到大陆以外。' }],
                 },
-                {
-                    id: 'institution',
-                    title: '高校与场馆',
-                    badge: '高校场馆',
-                    description: ['高校、文化场馆、会议论坛、典礼及拍卖机构的官方公开活动直播与录像回放，默认关闭，需要时手动打开。', { mark: '画面经部署的机器转发，会占用服务器带宽；佳士得、富艺斯、易北爱乐还要部署的机器能访问境外网站。' }],
-                },
             ];
             return categories;
         }
@@ -6183,8 +6177,7 @@
 
             // 分类按钮：数量跟着上面的开关筛选走；某类里有模块抓取失败或凭证失效，按钮上挂红点
             const categoryOf = m => m.category || 'standard';
-            // 高校与场馆先统一分类；尚未接入模块时也保留入口，明确展示接入状态。
-            const present = categories.filter(category => category.id === 'institution' || modules.some(m => categoryOf(m) === category.id));
+            const present = categories.filter(category => modules.some(m => categoryOf(m) === category.id));
             const active = present.find(category => category.id === extractorCategory) || present[0];
             const needsAttention = m => {
                 const h = m.health || {};
@@ -6241,9 +6234,7 @@
                     </div>
                     ${activeModules.length
                         ? modulesHtml(activeModules)
-                        : `<div class="extractor-filter-empty">${active.id === 'institution' && !modules.some(m => categoryOf(m) === active.id)
-                            ? '暂未接入高校与场馆模块。'
-                            : extractorFilter === 'on'
+                        : `<div class="extractor-filter-empty">${extractorFilter === 'on'
                                 ? '这一类的模块都关着。切到「已关闭」或「全部」，勾选「启用」即可打开。'
                                 : '这一类没有关闭的模块。'}</div>`}
                 </section>`;
@@ -8058,7 +8049,11 @@
             return externalConfig;
         }
 
+        // 各源最近一次拉取失败的记账（服务端内存态，随 GET /api/external-sources 的 fetchStatus 带下来，
+        // 按源 id 存 { failCount, lastError, nextRetryAt }）。单独存放、不进 externalConfig，整份保存时不会被 POST 回去
+        let externalFetchStatus = {};
         function normalizeExternalConfig(payload) {
+            if (payload && payload.fetchStatus && typeof payload.fetchStatus === 'object') externalFetchStatus = payload.fetchStatus;
             const data = payload && payload.data !== undefined ? payload.data : payload || {};
             if (Array.isArray(data)) {
                 return {
@@ -8636,6 +8631,9 @@
                 // 订阅模式：填写m3u播放列表URL，自动解析多频道
                 const channelCount = (source.parsedChannels && source.parsedChannels.length) || 0;
                 const channelInfo = channelCount > 0 ? `<div class="form-hint" style="color: #52c41a;">\u2714 已解析 ${channelCount} 个频道（上次更新: ${source.lastUpdated ? new Date(source.lastUpdated).toLocaleString() : '从未'}\uff09</div>` : '';
+                // 上次拉取失败了就说明原因和下次重试时间：「上次更新」只记成功，光看它不知道这个源已经拉不到了
+                const fetchFail = source.id ? externalFetchStatus[source.id] : null;
+                const fetchFailInfo = fetchFail ? `<div class="form-hint" style="color: #fa8c16;">\u26a0 上次拉取失败（第 ${fetchFail.failCount} 次）：${escapeHtml(String(fetchFail.lastError || '').slice(0, 200))}。${new Date(fetchFail.nextRetryAt).toLocaleTimeString()} 后自动重试</div>` : '';
                 detail.innerHTML = `
                     <div class="external-detail-header">
                         <div class="external-detail-title">${source.name || '未命名订阅'}</div>
@@ -8666,7 +8664,7 @@
                             <textarea oninput="updateExternalField(${index}, 'subscriptionContent', this.value)" placeholder="选择本地 .m3u/.m3u8/.txt 文件，或直接把播放列表内容粘贴到这里（支持 m3u/m3u8 与 txt「频道名,地址」格式，自动识别 GBK/UTF-8 编码）" style="width: 100%; min-height: 120px; font-family: monospace; font-size: 12px; box-sizing: border-box;">${(source.subscriptionContent || '').replace(/&/g, '&amp;').replace(/</g, '&lt;')}</textarea>
                             <div class="form-hint">选择文件或粘贴内容后，点下方「导入并保存」即可解析入库；本地导入不发起网络请求</div>
                             `}
-                            ${channelInfo}
+                            ${channelInfo}${fetchFailInfo}
                         </div>
                         <div class="external-field">
                             <label>User-Agent（可选）</label>
@@ -8678,6 +8676,20 @@
                             </label>
                             <div class="form-hint">勾选后，本源频道在 m3u 里都带上 <code>#EXTVLCOPT:http-user-agent</code>，需要播放器认这一行（VLC、Kodi 等）；订阅里已自带 UA 的频道保持不变。带请求头的频道 TXT 格式放不下，会从 TXT 订阅里跳过。</div>
                         </div>
+                        ${!source.localImport ? `
+                        <div class="external-field">
+                            <div class="external-field-row">
+                                <div>
+                                    <label>拉取超时（秒，可选）</label>
+                                    <input type="number" min="${SUBSCRIPTION_FETCH_RANGES.fetchTimeout[0]}" max="${SUBSCRIPTION_FETCH_RANGES.fetchTimeout[1]}" step="1" value="${escapeHtml(String(source.fetchTimeout ?? ''))}" onchange="setSubscriptionFetchField(${index}, 'fetchTimeout', this)" placeholder="15">
+                                </div>
+                                <div>
+                                    <label>失败重试（次，可选）</label>
+                                    <input type="number" min="${SUBSCRIPTION_FETCH_RANGES.fetchRetries[0]}" max="${SUBSCRIPTION_FETCH_RANGES.fetchRetries[1]}" step="1" value="${escapeHtml(String(source.fetchRetries ?? ''))}" onchange="setSubscriptionFetchField(${index}, 'fetchRetries', this)" placeholder="0">
+                                </div>
+                            </div>
+                            <div class="form-hint">总是「请求超时」时再调。超时从发起请求算到列表下载完，留空 15 秒，可填 5–120；重试留空为不重试，最多 3 次，只对超时、连接中断、服务器忙（5xx / 429）重试，404 这类直接算失败。GitHub raw 地址会依次试 5 条线路、每条各算一次超时，重试对它不生效。设得越大，这个源拉不到时其它源的自动刷新等得越久。</div>
+                        </div>` : ''}
                         <div class="external-field">
                             <label>默认分组</label>
                             ${renderGroupSelect(index, source.group || '未分组')}
@@ -9146,6 +9158,25 @@
             }
         }
 
+        // 订阅源「拉取超时 / 失败重试」（issue #223）。范围与服务端 externalSources.js 的
+        // SUBSCRIPTION_FETCH_LIMITS 一致：服务端也会再夹一次，这里夹是为了让输入框显示的就是实际生效的值
+        const SUBSCRIPTION_FETCH_RANGES = { fetchTimeout: [5, 120], fetchRetries: [0, 3] };
+        function setSubscriptionFetchField(index, field, input) {
+            const [min, max] = SUBSCRIPTION_FETCH_RANGES[field];
+            const raw = String(input.value || '').trim();
+            const n = Number(raw);
+            if (raw === '' || !Number.isFinite(n)) {
+                // 留空 = 用默认值：删掉字段，而不是存一个 0 / 空串
+                input.value = '';
+                delete externalConfig.sources[index][field];
+                setSaveDirty('ext');
+                return;
+            }
+            const value = Math.min(max, Math.max(min, Math.round(n)));
+            input.value = String(value);
+            updateExternalField(index, field, value);
+        }
+
         function updateExternalField(index, field, value) {
             externalConfig.sources[index][field] = value;
             // 只写了页面副本，服务端还不知道 —— 标记「欠按保存」。
@@ -9453,10 +9484,11 @@
                         renderChannels();
                     }
                 } else {
-                    showStatus(`${sourceName} 导入失败: ${result.message || '未知错误'}`, 'error');
+                    // 失败信息里带着「已尝试哪些线路」和「可以调大拉取超时」这类要照着做的话，3 秒读不完
+                    showStatus(`${sourceName} 导入失败: ${result.message || '未知错误'}`, 'error', 10000);
                 }
             } catch (error) {
-                showStatus(`${sourceName} 导入失败: ${error.message}`, 'error');
+                showStatus(`${sourceName} 导入失败: ${error.message}`, 'error', 10000);
             } finally {
                 updatingSourceIndex = null;
                 renderExternalSources();

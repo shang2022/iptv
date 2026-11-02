@@ -998,12 +998,11 @@ try {
       assert.equal(modules.find(module => module.id === id)?.category, 'live', `${id} 应归入网络直播平台`)
     }
     // 默认关、由用户自己打开的：「海外」小节那几个，加上频道量大、只有本地少数人看的山东市县（#196 作者拍板）
-    // 和市县台的各省模块（guangdianyun-*，同样作者拍板）；高校与场馆全部默认关（v4.51.1 作者拍板）。
+    // 和市县台的各省模块（guangdianyun-*，同样作者拍板）。
     assert.deepEqual(
       listModules().filter(module => module.defaultEnabled === false).map(module => module.id).sort(),
       [
         ...modules.filter(module => module.category === 'overseas').map(module => module.id),
-        ...modules.filter(module => module.category === 'institution').map(module => module.id),
         'shandong-counties',
         'bestv-fj',
         'websports',
@@ -1011,17 +1010,6 @@ try {
       ].sort(),
     )
     assert.deepEqual(modules.filter(module => module.category === 'overseas').map(module => module.id).sort(), ['overseas', 'tdm'])
-    const institutionIds = [
-      'inst-xjtu', 'inst-jlu', 'inst-chnmuseum', 'inst-shqyg', 'inst-zjwhg', 'inst-culturecloud',
-      'inst-fudan', 'inst-bnu', 'inst-hust', 'inst-gdwhg', 'inst-hnwhg', 'inst-gzdjy', 'inst-ccom',
-      'inst-shlib', 'inst-cdstm', 'inst-stvf', 'inst-siff', 'inst-zgc', 'inst-shforum',
-      'inst-phillips', 'inst-elb', 'inst-smartedu', 'inst-movie1905', 'inst-weibo', 'inst-mgtv-events',
-    ]
-    assert.deepEqual(modules.filter(module => module.category === 'institution').map(module => module.id).sort(), institutionIds.sort(),
-      '25 个来源各自注册为独立模块，统一归入高校与场馆')
-    for (const id of institutionIds) assert.equal(modules.find(module => module.id === id)?.category, 'institution', id)
-    assert.equal(new Set(modules.filter(module => module.category === 'institution').map(module => module.name)).size, 25,
-      '机构显示名应独立，不合并成跨机构模块')
   })
 
   check('模块地区透传给后台：省台、地市台、景观归到同一地区，全国性的不归', () => {
@@ -1070,14 +1058,12 @@ try {
       '用户明确保存的关闭态不能被默认值覆盖')
   })
 
-  check('★ 百视通、海外频道、高校与场馆、澳门、山东市县、市县台默认关闭，用户打开后保持打开；没点过的开关不落盘', () => {
+  check('★ 百视通、海外频道、澳门、山东市县、市县台默认关闭，用户打开后保持打开；没点过的开关不落盘', () => {
     const optIn = listModules().filter(module => module.defaultEnabled === false).map(module => module.id)
     const gdy = optIn.filter(id => id.startsWith('guangdianyun-'))
     assert.ok(gdy.length >= 20, '市县台各省模块都默认关闭')
     assert.equal(listModules().filter(module => module.id.startsWith('guangdianyun-')).length, gdy.length)
-    const inst = optIn.filter(id => id.startsWith('inst-'))
-    assert.equal(inst.length, 25, '高校与场馆 25 个来源都默认关闭')
-    assert.deepEqual(optIn.filter(id => !id.startsWith('guangdianyun-') && !id.startsWith('inst-')).sort(),
+    assert.deepEqual(optIn.filter(id => !id.startsWith('guangdianyun-')).sort(),
       ['bestv-fj', 'overseas', 'shandong-counties', 'tdm', 'websports'],
       '百视通因出口可用性差异默认关闭；WebSports 来自第三方赛事网站；其余默认关闭模块保持不变')
     const manager = newManager(undefined, { modules: {}, masterSwitchRetired: true })
@@ -1781,6 +1767,36 @@ try {
     } finally { module.fetch = origFetch }
     const health = manager.cache.modules['bilibili-live'].health
     assert.equal(health.lastSuccessAt, null, '旧轮的记账不能冻结「配置已变更、立刻重抓」')
+  })
+
+  await checkAsync('★ 频道表和上一轮一样 → changed:false，变了 → changed:true（issue #222）', async () => {
+    // 回归：5 分钟 tick 此前只看「刷新成功」就重写播放列表。延迟解析的模块（广西每 30 分钟）
+    // 每轮抓回的都是同一份 deferredRef，等于反复重写一字未变的列表、刷五十多行日志。
+    const manager = newManager()
+    manager.setModuleEnabled('bilibili-live', true)
+    const module = getModule('bilibili-live')
+    const origFetch = module.fetch
+    let groups = oneGroup
+    // 每轮都给新对象：真实模块每次都是现拼的，判定必须比内容、不能比引用
+    module.fetch = async () => ({ groups: JSON.parse(JSON.stringify(groups)) })
+    const run = async (m = manager) => (await m.updateAll({ forceAll: true, onlyId: 'bilibili-live' })).results[0]
+    try {
+      assert.equal((await run()).changed, true, '冷缓存第一次抓到频道就是变化')
+      const same = await run()
+      assert.equal(same.success, true)
+      assert.equal(same.changed, false, '内容没变不该触发重新生成')
+
+      // 重启后磁盘缓存 JSON 往返一次，再抓到同样内容也还是没变
+      const restarted = new ExtractorManager()
+      restarted.configPath = manager.configPath
+      restarted.cachePath = manager.cachePath
+      restarted.legacyConfigPath = manager.legacyConfigPath
+      restarted.load()
+      assert.equal((await run(restarted)).changed, false, '读回磁盘缓存后比对不该失真')
+
+      groups = [{ ...oneGroup[0], dataList: [{ ...oneGroup[0].dataList[0], url: 'https://cdn/b.m3u8' }] }]
+      assert.equal((await run()).changed, true, '地址变了必须重新生成')
+    } finally { module.fetch = origFetch }
   })
 
   check('listSourceIds 不按模块开关过滤——「配置档 ↔ 源」的绑定行要留在矩阵里', () => {
