@@ -10,6 +10,7 @@ import { normalizeHiddenRules, matchHiddenRule } from "./hiddenRules.js"
 import { matchSourceFallbackGroup } from "./sourceGroupFallback.js"
 import { collectOptsUntilUrl, renderOpts, needsOpts } from "./channelOpts.js"
 import { parseCatchupAttrs, renderCatchupAttrs } from "./channelCatchup.js"
+import { markFengshowsLiveUrls } from "../extractors/fengshows/channels.js"
 import { ANNOUNCEMENT, isAnnouncementChannel, protectAnnouncementConfig, systemChannelByUrl } from "./announcement.js"
 
 // 台标来源分类（供后台展示）：本地上传 / 源自带 / 公共库兜底 / 无。
@@ -258,7 +259,7 @@ function extinfName(line) {
 /**
  * 解析 interface.txt 文件
  */
-export function parseInterfaceTxt() {
+export function parseInterfaceTxt({ forTxt = false } = {}) {
   try {
     const interfacePath = dataPath('interface.txt')
     if (!existsSync(interfacePath)) {
@@ -267,7 +268,7 @@ export function parseInterfaceTxt() {
     }
     
     const content = readFileSync(interfacePath, 'utf-8')
-    const lines = content.split('\n')
+    const lines = (forTxt ? content : markFengshowsLiveUrls(content)).split('\n')
     const groups = {}
     const playbackIds = getPlaybackChannelIds()   // 解析一次：用于逐频道判定有无节目单（issue #38）
 
@@ -300,11 +301,14 @@ export function parseInterfaceTxt() {
           const url = lines[urlIndex].trim()
           
           const tvgName = tvgNameMatch ? tvgNameMatch[1] : channelName
+          // 内部目录可声明迁移前的地址作为身份依据；真实播放仍使用下面的 url。
+          let identityUrl = ''
+          try { identityUrl = decodeURIComponent(line.match(/ identity-url="([^"\s]*)"/)?.[1] || '') } catch { /* 忽略坏属性 */ }
           const channelId = buildChannelId({
             groupName,
             channelName,
             tvgName,
-            url
+            url: identityUrl || url
           })
           
           if (!groups[groupName]) {

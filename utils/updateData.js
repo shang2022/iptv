@@ -24,6 +24,12 @@ import miguDanmaku from "../extractors/migu/danmaku.js"
 
 const PE_CACHE_PATH = dataPath('pe-cache.json')
 
+// 本进程最近一次重新生成 playback.xml 的时间；零点后补刷据此判断今天是否已经刷过（utils/dailyEpgRefresh.js）
+let lastPlaybackBuiltAt = 0
+export function getLastPlaybackBuiltAt() {
+  return lastPlaybackBuiltAt
+}
+
 // 本地台标支持的扩展名（按优先级查找）
 export const LOGO_EXTS = ['png', 'jpg', 'jpeg', 'webp']
 
@@ -481,6 +487,10 @@ async function updateTV(hours, options = {}) {
       const allSourceIds = [...new Set([ownSourceId, ...(channelItem.sourceIds || [])].filter(Boolean))]
       // 多源用分号分隔（早先回读按「第一个逗号」切频道名，属性值不能带逗号；沿用至今）
       const sourceAttr = allSourceIds.length ? ` source-ids="${allSourceIds.join(';')}"` : ''
+      // 模块从直链迁到代理时可保留旧地址作为身份依据，避免旧隐藏/改名/排序失配。
+      // URI 编码只用于内部属性，不影响真正的播放 URL，也不允许属性注入。
+      const identityAttr = isExtractor && channelItem.identityUrl
+        ? ` identity-url="${encodeURIComponent(channelItem.identityUrl)}"` : ''
 
       // 频道级播放选项：防盗链源要靠 #EXTVLCOPT 把 Referer 等带给播放器，
       // 必须夹在 EXTINF 和播放地址之间。无 opts 时为空串，输出与之前逐字节一致。
@@ -490,7 +500,7 @@ async function updateTV(hours, options = {}) {
       // 频道级回看声明：模块的 catchup:'none'（issue #119）与第三方订阅自带的模板 / 天数（issue #190），
       // 行内覆盖订阅头的咪咕模板。没有声明时为空串，输出与之前逐字节一致。
       const catchupAttr = renderCatchupAttrs(channelItem)
-      appendFileSync(interfacePath, `#EXTINF:-1 tvg-id="${channelItem.name}" tvg-name="${channelItem.name}" tvg-logo="${logoUrl}"${sourceAttr}${catchupAttr} group-title="${datas[i].name}",${channelItem.name}\n${optLines}${playUrl}\n`)
+      appendFileSync(interfacePath, `#EXTINF:-1 tvg-id="${channelItem.name}" tvg-name="${channelItem.name}" tvg-logo="${logoUrl}"${sourceAttr}${identityAttr}${catchupAttr} group-title="${datas[i].name}",${channelItem.name}\n${optLines}${playUrl}\n`)
       writtenChannels++
       // txt：diyp/TVBox 格式只有「频道名,地址」两列，放不下请求头，依赖请求头的
       // 频道写进去必定 403——缺一个台好过一个死台，整条跳过。
@@ -535,6 +545,7 @@ async function updateTV(hours, options = {}) {
     }
     appendFileSync(playbackFile, `</tv>\n`)
     renameFileSync(playbackFile, playbackFile.replace(".bak", ""))
+    lastPlaybackBuiltAt = Date.now()
   }
   renameFileSync(interfacePath, interfacePath.replace(".bak", ""))
   // txt

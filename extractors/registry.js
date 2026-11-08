@@ -18,7 +18,8 @@
  *   description           string  后台一句话说明
  *   category              string  可选；后台源管理分组。'account' 表示带账号/
  *                                 授权能力，'live' 表示网络直播平台，'overseas' 表示
- *                                 面向大陆以外、默认关闭的海外模块；不声明即
+ *                                 面向大陆以外、默认关闭的海外模块（海外频道、澳门、
+ *                                 YouTube 直播）；不声明即
  *                                 'standard'（免账号的普通官方抓取模块）
  *   defaultEnabled        boolean 可选；用户没在卡片上点过开关时开不开，不声明即开。
  *                                 只有面向海外、在大陆连不上或常卡顿的模块写 false
@@ -27,6 +28,11 @@
  *                                 福建百视通以重复频道备用为主，按用户要求默认关；WebSports 来自第三方赛事网站，不进默认内容；各模块在海外的
  *                                 实测见仓库根目录 OVERSEAS.md。v4.29.0 及以前已有的模块
  *                                 在存量配置里多已落成 enabled:true，改它们的默认值要另写迁移
+ *   enableNotice          string  可选；用户在后台打开这个模块前要看的一句话。卡片开关先弹确认，
+ *                                 点「取消」不打开；「批量开关」里勾上它，摘要下面列出这句话。
+ *                                 给能不能播看部署网络的模块用（辽宁）；默认开的模块，用户关掉后再打开才看得到
+ *   configSavedNotice     string  可选；后台「保存配置」成功后的提示。不写时提示「点立即刷新才生效」；
+ *                                 配置只影响播放、不用重抓的模块（YouTube 的画质上限）写自己的说法
  *   capabilities          object  { cache: 'disk'|'memory'|'none',
  *                                   resolve: boolean, epg: boolean }
  *   catalogVersion        number  可选；代码内置频道表变更时递增。缓存版本不一致会在
@@ -52,11 +58,26 @@
  *                                 刷新预览图 / 检测可用性 / 失败自动换台）时本地拒绝、不打上游。
  *                                 给「服务端代所有观众向官方取票」且官方按 IP 限频的模块用；
  *                                 直链或分片播放器直连的模块不需要
+ *   outbound              string  可选；'proxy' 表示模块的全部出站——取址、节目单、清单、分片、外部工具——
+ *                                 都走后台「设置 → 网络代理」（utils/outboundProxy.js 的 outboundFetch，
+ *                                 没配时沿用环境变量代理或直连）。后台「网络代理」的适用名单、「测试」
+ *                                 按钮的目标、模块卡片上的「走代理」角标都从这个声明派生，不另外维护；
+ *                                 scripts/test-extractors.mjs 静态检查：声明了的模块不许再用 proxyAwareFetch
+ *                                 或全局 fetch，没声明的不许引用 outboundFetch。新增要走代理的模块按
+ *                                 ADD-CHANNELS.md「要走代理的模块」那条做
+ *   proxyProbe            object  outbound 为 'proxy' 时必需：{ url, name? }。「测试」按钮用来代表这个模块的
+ *                                 一个 https 接口或清单（取址用的接口、或一路直播的主清单）；name 不写用模块名
+ *   proxyHosts            array   outbound 为 'proxy' 时必需：模块出站真会连、大陆直连不通的域名，按后缀写
+ *                                 （'tdm.com.mo'、'googlevideo.com'，不带协议、路径或通配符），要盖住 proxyProbe.url
+ *                                 的主机。代理软件用规则模式时得放行这些域名才会走节点；后台「网络代理」的
+ *                                 说明和「测试」里断在代理之后的失败项按它告诉用户往代理规则里加什么
  *   streamType            string  可选；默认 hls，flv 由本机流式代理且不转码。
  *                                 FLV resolve 须返回 validateMediaUrl 校验官方调度跳转。
  *   capabilities.catchup boolean 可选；false 表示纯直播，不透传回看查询参数。
  *   configSchema          array   字段描述，后台据此渲染表单、后端据此校验。值会进请求头的
- *                                 文本字段声明 headerValue: true，保存时去首尾空白、拦下非法字符
+ *                                 文本字段声明 headerValue: true，保存时去首尾空白、拦下非法字符。
+ *                                 字段说明 hint 写一句话的字符串；三条以上要点写成字符串数组，
+ *                                 后台按编号列表显示
  *   credentialCheck       object  要登录的模块（有 secret 字段或 browserLoginFlow）必需：
  *                                 { refresh: 刷新时检查凭证并报 meta.credentialRejected,
  *                                   playback: 播放时发现并经 credentialRejected(config) 上报,
@@ -105,6 +126,10 @@
  *       异常等于请求永远不 res.end()、客户端挂死到超时。
  *       解析结果的缓存由模块自己管（TTL 往往是签名有效期这种平台属性）。
  *
+ *   groupsFromConfig(config) 可选。纯本地目录在保存配置时同步重建，停用期间的修改也进入频道缓存。
+ *   playbackRequiresEnabled 为真时，停用模块也关闭已收藏的频道地址和已发出的媒体地址。
+ *   fetchProxyMedia(ref, config, url, options) 可选。主清单、子清单、分片与 HEAD 共用的回源函数；可选择出站代理或刷新过期签名。
+ *   epgFetch(url, options) 可选。模块节目单的默认出站 fetch；显式测试注入仍优先。
  *   claimsRef(ref) → boolean
  *       capabilities.resolve 为真时必需。判断某个 ref 是不是自己的，
  *       播放请求靠它路由到模块。
@@ -142,6 +167,7 @@
  *   name       必需，显示名，也是去重键的一半
  *   url        直链模块必需
  *   deferredRef  延迟解析模块必需（与 url 二选一）
+ *   identityUrl 可选；迁移前的稳定直链，只用于保持频道 ID 与用户编排，不能作为播放地址。
  *   logo       官方台标的完整图片地址；官方确实没有才留空。默认没有台标库兜底，
  *              留空就是没有台标。取法与要求见仓库根目录 LOGO.md
  *   groupTitle 装饰用；真正的分组来自所在 group.name
@@ -163,7 +189,9 @@
  */
 import bilibiliLive from './bilibili-live/index.js'
 import douyinLive from './douyin-live/index.js'
+import youtubeLive from './youtube-live/index.js'
 import asianLive from './asian-live/index.js'
+import redbull from './redbull/index.js'
 import anhui from './anhui/index.js'
 import beijing from './beijing/index.js'
 import chongqing from './chongqing/index.js'
@@ -172,6 +200,7 @@ import chengdu from './chengdu/index.js'
 import sichuanCities from './sichuan-cities/index.js'
 import cztv from './cztv/index.js'
 import dalian from './dalian/index.js'
+import liaoning from './liaoning/index.js'
 import douyuLive from './douyu-live/index.js'
 import fjtv from './fjtv/index.js'
 import bestvFj from './bestv-fj/index.js'
@@ -238,6 +267,8 @@ import overseas from './overseas/index.js'
 // 模块 id 会进 sourceId 并写进 EXTINF 属性值，不消毒就是注入面。
 // 与 utils/configBackupAPI.js 的文件名白名单同款约束。
 export const MODULE_ID_RE = /^[a-z0-9][a-z0-9_-]{0,31}$/
+// proxyHosts 的每一项：小写域名后缀，至少两段，不带协议、端口、路径、通配符
+const PROXY_HOST_RE = /^(?=.{1,253}$)[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)+$/
 export const MODULE_CATEGORIES = new Set(['account', 'live', 'standard', 'overseas'])
 
 const MODULES = [
@@ -251,6 +282,7 @@ const MODULES = [
   asianLive,
   bilibiliLive,
   douyinLive,
+  youtubeLive,
   huyaLive,
   douyuLive,
   websports,
@@ -261,6 +293,7 @@ const MODULES = [
   chengdu,
   sichuanCities,
   dalian,
+  liaoning,
   gansu,
   gdtv,
   gdsportEvents,
@@ -318,6 +351,7 @@ const MODULES = [
   // 市县台（广电云，按省拆成 20 个模块）跟在各省级、地市模块之后：并进同省分组时排在省台、市台后面
   ...guangdianyunModules,
   // 海外频道排最后：并进体育、文旅等现有分组时，跟在各台官方频道后面
+  redbull,
   overseas,
 ]
 
@@ -334,6 +368,12 @@ export function validateModule(module) {
   }
   if (module.defaultEnabled != null && typeof module.defaultEnabled !== 'boolean') {
     throw new Error(`抓取模块 ${module.id} 的 defaultEnabled 必须是布尔值`)
+  }
+  if (module.enableNotice != null && (typeof module.enableNotice !== 'string' || !module.enableNotice.trim())) {
+    throw new Error(`抓取模块 ${module.id} 的 enableNotice 必须是非空字符串`)
+  }
+  if (module.configSavedNotice != null && (typeof module.configSavedNotice !== 'string' || !module.configSavedNotice.trim())) {
+    throw new Error(`抓取模块 ${module.id} 的 configSavedNotice 必须是非空字符串`)
   }
   if (module.category != null && !MODULE_CATEGORIES.has(module.category)) {
     throw new Error(`抓取模块 ${module.id} 的 category 非法: ${JSON.stringify(module.category)}`)
@@ -374,6 +414,28 @@ export function validateModule(module) {
   if (module.streamType != null && !['hls', 'flv'].includes(module.streamType)) {
     throw new Error(`抓取模块 ${module.id} 的 streamType 非法`)
   }
+  if (module.outbound != null && module.outbound !== 'proxy') {
+    throw new Error(`抓取模块 ${module.id} 的 outbound 非法: ${JSON.stringify(module.outbound)}（只有 'proxy'）`)
+  }
+  if (module.outbound === 'proxy') {
+    const probe = module.proxyProbe
+    if (!probe || typeof probe !== 'object' || !/^https?:\/\/\S+$/.test(probe.url || '')) {
+      throw new Error(`抓取模块 ${module.id} 声明了 outbound: 'proxy'，必须给 proxyProbe: { url, name? }（测试按钮用的代表性接口）`)
+    }
+    if (probe.name != null && (typeof probe.name !== 'string' || !probe.name.trim())) {
+      throw new Error(`抓取模块 ${module.id} 的 proxyProbe.name 必须是非空字符串`)
+    }
+    const hosts = module.proxyHosts
+    if (!Array.isArray(hosts) || !hosts.length || hosts.some(host => typeof host !== 'string' || !PROXY_HOST_RE.test(host))) {
+      throw new Error(`抓取模块 ${module.id} 声明了 outbound: 'proxy'，必须给 proxyHosts: ['域名后缀', …]（只写小写域名，如 'tdm.com.mo'，不带协议、路径或通配符）`)
+    }
+    const probeHost = new URL(probe.url).hostname
+    if (!hosts.some(host => probeHost === host || probeHost.endsWith('.' + host))) {
+      throw new Error(`抓取模块 ${module.id} 的 proxyProbe.url 主机 ${probeHost} 不在 proxyHosts 里：测试目标得是模块真会连的域名`)
+    }
+  } else if (module.proxyProbe != null || module.proxyHosts != null) {
+    throw new Error(`抓取模块 ${module.id} 没声明 outbound: 'proxy'，不该有 proxyProbe / proxyHosts`)
+  }
 }
 
 const registry = new Map()
@@ -405,6 +467,11 @@ export function moduleRegion(module) {
 /** 全部模块，顺序即后台展示顺序。 */
 export function listModules() {
   return [...registry.values()]
+}
+
+/** 走后台「网络代理」的模块（outbound: 'proxy'），按注册顺序：后台名单、测试目标、要放行的域名和角标都从这里拿。 */
+export function proxyModules() {
+  return listModules().filter(module => module.outbound === 'proxy')
 }
 
 /** 按 id 取模块；不存在返回 undefined（调用方自己决定是报错还是跳过）。 */

@@ -10,6 +10,8 @@
  */
 import { getExtractorManager } from "./extractorManager.js"
 import { getModule, listModules } from "../extractors/registry.js"
+import { clearResolveCache as clearYouTubeCache, eventStatuses as youtubeEventStatuses, inspect as inspectYouTube, records as youtubeRecords, refOf as youtubeRef } from "../extractors/youtube-live/api.js"
+import { runtimeStatus as youtubeRuntimeStatus, updateRuntime as updateYouTubeRuntime } from "../extractors/youtube-live/runtime.js"
 import { setSystemFlagAPI } from "./systemConfigAPI.js"
 import { enableBuiltInSources, enableBuiltInSubscriptions } from "../config.js"
 import { updateExtractors } from "./channelMerger.js"
@@ -310,6 +312,43 @@ export const importBrowserLoginAPI = (id, payload) => {
   if (typeof payload !== 'string' || !payload.trim()) return fail(new Error('请先粘贴登录态内容'))
   if (payload.length > 64 * 1024) return fail(new Error('登录态内容过长'))
   return runBrowserLoginAction(id, 'import', payload)
+}
+
+/** 查询只返回公开频道/场次标识。增删复用模块配置、刷新和订阅生成流程。 */
+export async function youtubeSubscriptionAPI({ action, url, ref, refs, op }) {
+  try {
+    const manager = getExtractorManager()
+    const module = getModule('youtube-live')
+    if (action === 'youtubeInspect') return { success: true, ...await inspectYouTube(url) }
+    // 固定场次的状态（直播中 / 已预约 / 已结束 / 失效），后台据此标出可以移除的
+    if (action === 'youtubeStatus') {
+      return { success: true, statuses: await youtubeEventStatuses(youtubeRecords(manager.effectiveConfig(module))) }
+    }
+    // 解析组件（yt-dlp）：status 只读本机版本；check 顺带查 PyPI 最新版；update 就地升级
+    if (action === 'youtubeRuntime') {
+      if (op === 'update') return { success: true, ...await updateYouTubeRuntime({ onUpdated: clearYouTubeCache }) }
+      return { success: true, ...await youtubeRuntimeStatus({ checkLatest: op === 'check' }) }
+    }
+    const item = action === 'youtubeAdd' ? (await inspectYouTube(url, { includeEvents: false })).item : null
+    // 网络查询完成后再读最新配置，并发添加不会覆盖其他刚保存的订阅。
+    const rows = youtubeRecords(manager.effectiveConfig(module))
+    let next
+    if (action === 'youtubeRemove') {
+      // refs：一次移除多个（「移除已结束的场次」），ref：单个
+      const drop = new Set((Array.isArray(refs) ? refs : [ref]).filter(value => typeof value === 'string'))
+      next = rows.filter(row => !drop.has(row.videoId || row.channelId))
+      if (next.length === rows.length) throw new Error('没有此 YouTube 订阅')
+    } else if (item) {
+      if (rows.some(row => youtubeRef(row) === youtubeRef(item))) return ok(manager)
+      if (rows.length >= 100) throw new Error('最多可保存 100 个 YouTube 订阅')
+      next = [...rows, item]
+    } else {
+      throw new Error('未知的 YouTube 订阅操作')
+    }
+    manager.updateModuleConfig(module.id, { subscriptions: JSON.stringify(next) })
+    if (manager.isModuleEnabled(module)) regeneratePlaylist()
+    return ok(manager)
+  } catch (error) { return fail(error) }
 }
 
 /** 单模块开关。 */

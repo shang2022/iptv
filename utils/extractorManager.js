@@ -33,6 +33,8 @@ import { enableExtractors } from "../config.js"
 const CONFIG_FILE = 'extractors.json'
 const CACHE_FILE = 'extractor-cache.json'
 // 北斗官方入口持续 WAF 405，2026-10-22 移除；江门直播 CDN 持续 502，2026-10-27 暂时移除。
+// 辽宁省台与沈阳台 2026-11-04 换成新 id `liaoning` 加回；`beidou` 留在这里继续清，
+// 旧配置 / 旧备份里它的开关、缓存和告警状态不带到新模块。
 // 「高校与场馆」整类（inst-*，含 10-27 先撤的佳士得）2026-11-02 下线，代码在分支
 // backup/institution-2026-11-02，按前缀清。
 // 加载或导入旧备份时同步清掉这些模块的配置、频道缓存与告警状态。
@@ -395,6 +397,16 @@ class ExtractorManager {
         cacheChanged = true
         printYellow(`抓取模块 ${module.name} 已清理 ${pruned.removed} 个新版不再认领的缓存频道`)
       }
+      // 配置就是完整目录的模块无需联网。停用时也备好新目录，首次打开开关就能输出。
+      if (module.groupsFromConfig && module.catalogVersion != null && cacheEntry.catalogVersion !== module.catalogVersion) {
+        try {
+          const groups = module.groupsFromConfig(this.effectiveConfig(module))
+          this.#recordSuccess(module.id, normalizeGroups(groups), {})
+          cacheChanged = true
+        } catch (error) {
+          printYellow(`抓取模块 ${module.name} 未能从配置重建目录：${error.message}`)
+        }
+      }
       // 代码内置频道表升级时，旧磁盘缓存即使未到刷新周期也要立刻重建。
       // 旧 groups 先保留作失败兜底；ensureWarm 会按版本不匹配主动抓取，只有
       // 成功后 #recordSuccess 才盖上新版本。
@@ -741,6 +753,11 @@ class ExtractorManager {
         // 现在两边都能改，所以不再是「只读」，只是多一条「也可用环境变量控制」的说明。
         enabledProxied: typeof module.enabledGetter === 'function',
         enabledEnv: module.enabledEnv || '',
+        // 打开前要用户确认的一句话（registry.js 的 enableNotice），卡片开关和批量开关都用
+        enableNotice: module.enableNotice || '',
+        // 'proxy' = 这个模块的出站都走后台「网络代理」（registry.js 的 outbound），卡片上标「走代理」
+        outbound: module.outbound || '',
+        configSavedNotice: module.configSavedNotice || '',
         configSchema: module.configSchema || [],
         config,
         secretsSet,
@@ -909,6 +926,7 @@ class ExtractorManager {
         throw new Error(`刷新间隔要在 ${min}~${max} 分钟之间`)
       }
     }
+    const localGroups = module.groupsFromConfig?.(config)
     const prevConfig = entry.config
     const prevRefresh = entry.refreshMinutes
     entry.config = config
@@ -937,6 +955,7 @@ class ExtractorManager {
     cacheEntry.health.consecutiveFailures = 0
     // 凭证可能刚换过：旧结论作废，紧接着那轮重抓会重新检查
     cacheEntry.health.credentialRejected = ''
+    if (localGroups) this.#recordSuccess(id, normalizeGroups(localGroups), {})
     this.#saveCache()
     return this.getState()
   }

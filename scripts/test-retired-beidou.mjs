@@ -130,6 +130,19 @@ try {
       retainedRows.map(row => row.deferredRef))
   })
 
+  await check('旧北斗的开关不带到 11-04 加回的辽宁模块（新 id，按自己的默认值开）', () => {
+    write(manager.configPath, { modules: { beidou: { enabled: false, config: {} } } })
+    write(manager.cachePath, { modules: {} })
+    manager.reload()
+    assert.ok(!Object.hasOwn(read(manager.configPath).modules, 'beidou'))
+    assert.ok(!Object.hasOwn(read(manager.configPath).modules, 'liaoning'), '没点过开关不落盘')
+    const liaoning = getModule('liaoning')
+    assert.notEqual(liaoning.defaultEnabled, false)
+    assert.equal(manager.isModuleEnabled(liaoning), true)
+    assert.equal(manager.getState().modules.find(module => module.id === 'liaoning').enabled, true)
+    for (const ref of beidouRefs) assert.equal(resolverFor(ref), null, '旧引用不归新模块')
+  })
+
   await check('旧配置损坏时保留原文件，仍可移除退役频道缓存', () => {
     const broken = '{"modules":'
     writeFileSync(manager.configPath, broken)

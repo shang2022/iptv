@@ -6,7 +6,7 @@
  * 又没了降档。服务端转发一次主清单、调好顺序，播放器从最高档起播，网速跟不上时照常降到后面几档；
  * 子清单和分片仍由播放器直连官方 CDN。
  *
- * 只动 #EXT-X-STREAM-INF 和紧跟它的地址行；#EXT-X-MEDIA（独立音轨、字幕）、I 帧清单和其余标签原样保留
+ * 默认只动 #EXT-X-STREAM-INF 和紧跟它的地址行；#EXT-X-MEDIA（独立音轨、字幕）、I 帧清单和其余标签原样保留
  * （主清单里标签的先后不影响语义）。排序键是分辨率像素数，其次 BANDWIDTH，都从高到低；没写分辨率、
  * CODECS 里也没有视频编码的纯音频档排最后；同分辨率同码率的保持原顺序（DW 的 -b 备用线路跟在主线路后）。
  * 不是主清单、不足两档、格式看不懂或本来就是这个顺序时原样返回。纯字符串处理，便于单测。
@@ -26,7 +26,15 @@ export function variantRank(streamInf) {
   return [hasVideo ? 1 : 0, pixels, Number(attribute(streamInf, 'BANDWIDTH')) || 0]
 }
 
-export function topVariantFirst(text) {
+/** 一档的「p 数」：取宽高里较短的一边，竖屏直播 1080×1920 也算 1080p。没写分辨率返回 0。 */
+function variantHeight(streamInf) {
+  const resolution = /^(\d+)x(\d+)$/.exec(attribute(streamInf, 'RESOLUTION') || '')
+  return resolution ? Math.min(Number(resolution[1]), Number(resolution[2])) : 0
+}
+
+// highestOnly 用于固定最高画质的源，仍需用主清单关联独立音轨和字幕。
+// maxHeight（如 1080）：只在不超过它的档里挑；一档都不满足时取最低的视频档，不至于没画面。
+export function topVariantFirst(text, { highestOnly = false, maxHeight = 0 } = {}) {
   if (typeof text !== 'string' || !text.includes('#EXT-X-STREAM-INF')) return text
   const eol = text.includes('\r\n') ? '\r\n' : '\n'
   const lines = text.split(/\r?\n/)
@@ -35,7 +43,7 @@ export function topVariantFirst(text) {
   const blocks = []
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i]
-    if (!line.trim().startsWith('#EXT-X-STREAM-INF')) {
+    if (!line.trim().startsWith('#EXT-X-STREAM-INF:')) {
       ;(blocks.length ? tail : head).push(line)
       continue
     }
@@ -45,17 +53,38 @@ export function topVariantFirst(text) {
     while (j < lines.length && (!lines[j].trim() || (lines[j].trim().startsWith('#') && !lines[j].trim().startsWith('#EXT')))) {
       block.push(lines[j++])
     }
-    if (j >= lines.length || lines[j].trim().startsWith('#')) return text
+    if (j >= lines.length || lines[j].trim().startsWith('#')) {
+      if (highestOnly) throw new Error('HLS 画质档缺少播放地址')
+      return text
+    }
     block.push(lines[j])
     blocks.push({ lines: block, rank: variantRank(line), order: blocks.length })
     i = j
   }
-  if (blocks.length < 2) return text
-  const sorted = [...blocks].sort((a, b) => {
+  if (!blocks.length || (!highestOnly && blocks.length === 1)) return text
+  let sorted = [...blocks].sort((a, b) => {
     for (let k = 0; k < 3; k++) if (a.rank[k] !== b.rank[k]) return b.rank[k] - a.rank[k]
     return a.order - b.order
   })
-  if (sorted.every((block, index) => block === blocks[index])) return text
+  if (maxHeight > 0) {
+    const video = sorted.filter(block => block.rank[0] && variantHeight(block.lines[0]) > 0)
+    const fits = video.filter(block => variantHeight(block.lines[0]) <= maxHeight)
+    const capped = fits.length ? fits : video.slice(-1)
+    if (capped.length) sorted = [...capped, ...sorted.filter(block => !video.includes(block))]
+  }
+  if (highestOnly) {
+    const best = sorted[0]
+    const groups = new Map(['AUDIO', 'VIDEO', 'SUBTITLES', 'CLOSED-CAPTIONS'].map(type => [type, attribute(best.lines[0], type)]))
+    const keep = line => {
+      const tag = line.trim()
+      if (/^#EXT-X-(?:I-FRAME|IMAGE)-STREAM-INF:/.test(tag)) return false
+      if (!tag.startsWith('#EXT-X-MEDIA:')) return true
+      const group = attribute(tag, 'GROUP-ID')
+      return !!group && groups.get(attribute(tag, 'TYPE')) === group
+    }
+    return [...head.filter(keep), ...best.lines, ...tail.filter(keep)].join(eol)
+  }
+  if (sorted.length === blocks.length && sorted.every((block, index) => block === blocks[index])) return text
   return [...head, ...sorted.flatMap(block => block.lines), ...tail].join(eol)
 }
 

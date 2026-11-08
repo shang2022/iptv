@@ -11,6 +11,7 @@ import { omitPlayerOnlyOpts } from "./channelOpts.js";
 import { fetchUpstreamResponse } from "./hlsProxy.js";
 import { checkModuleBurst } from "./clientScanGuard.js";
 import miguDanmaku from "../extractors/migu/danmaku.js";
+import { markFengshowsLiveUrls } from "../extractors/fengshows/channels.js";
 
 /**
  * 清空各模块的解析缓存。
@@ -83,8 +84,8 @@ function bodySnippet(text) {
 // 取回一份 HLS 清单文本（跟随 302），非 200 或非 HLS 内容返回 null。
 // 失败时把原因写进 diag.reason：此前这里静默返回 null，用户日志只剩一行「取回失败」，
 // CDN 到底回了 403 还是回了一页 HTML，排查者对着日志猜不出来（北京时间电视台就卡在这一步）。
-async function fetchHls(url, signal, upstreamHeaders = {}, diag = {}, upstreamFamily) {
-  const resp = await fetchUpstreamResponse(url, {
+async function fetchHls(url, signal, upstreamHeaders = {}, diag = {}, upstreamFamily, fetchMedia = fetchUpstreamResponse) {
+  const resp = await fetchMedia(url, {
     signal,
     upstreamHeaders,
     upstreamFamily,
@@ -131,16 +132,16 @@ function firstVariantUrl(text, base) {
 // 兼容模式面向 NAS 与播放设备同一网络的家庭场景，正好不需要就近取流。
 // 返回 null 表示取清单失败或内容不是 HLS，调用方应回退 302；失败原因写进 diag.reason，
 // 由调用方拼进它自己那行限流过的「取回失败」日志，不在这里另起一行。
-async function fetchManifestDirect(playURL, upstreamHeaders = {}, diag = {}, upstreamFamily) {
+async function fetchManifestDirect(playURL, upstreamHeaders = {}, diag = {}, upstreamFamily, fetchMedia) {
   const ctrl = new AbortController()
   const timer = setTimeout(() => ctrl.abort(), 10000)   // 覆盖两跳
   try {
-    const master = await fetchHls(playURL, ctrl.signal, upstreamHeaders, diag, upstreamFamily)
+    const master = await fetchHls(playURL, ctrl.signal, upstreamHeaders, diag, upstreamFamily, fetchMedia)
     if (!master) return null
 
     const variantUrl = firstVariantUrl(master.text, master.finalUrl)
     if (variantUrl) {
-      const media = await fetchHls(variantUrl, ctrl.signal, upstreamHeaders, {}, upstreamFamily)
+      const media = await fetchHls(variantUrl, ctrl.signal, upstreamHeaders, {}, upstreamFamily, fetchMedia)
       // 拍平成功：直接给播放器分片列表；失败则退回改写后的 master（跟随能力正常的播放器仍可播）
       if (media) return rewriteManifest(media.text, media.finalUrl)
       printDebug(`子清单取回失败，退回 master 清单: ${variantUrl}`)
@@ -188,6 +189,9 @@ function interfaceStr(url, headers, urlUserId, urlToken, profile, accessPrefix, 
   }
   try {
     result.content = readFileSync(fileName)
+    if (url !== "/txt" && url !== "/playback.xml") {
+      result.content = markFengshowsLiveUrls(String(result.content))
+    }
   } catch (error) {
     printRed("文件获取失败")
     console.log(error)
@@ -225,7 +229,7 @@ function interfaceStr(url, headers, urlUserId, urlToken, profile, accessPrefix, 
         getKeywordGroupRules().length > 0 ||
         hasSourceFallbackGroups())) {
         printGrey("应用播放列表自定义配置")
-        const groups = parseInterfaceTxt()
+        const groups = parseInterfaceTxt({ forTxt: url === "/txt" })
         const configuredGroups = applyConfig(groups, config)
         result.content = url === "/txt" ? generateTxt(configuredGroups) : generateM3u8(configuredGroups)
       }
@@ -304,14 +308,14 @@ function interfaceStr(url, headers, urlUserId, urlToken, profile, accessPrefix, 
     }
   }
 
-  // 剥离内部属性 source-ids（issue #29/#68 源归属标记）后再输出给播放器：
+  // 剥离内部属性 source-ids（源归属）与 identity-url（频道身份）后再输出给播放器：
   // 覆盖两条路径——原始 interface.txt 直出 与 applyConfig 重生成（generateM3u8 不写该属性，正则兜底无副作用）
   // 值里不许有空白：真正的源归属（migu / ext:<id> / bi:<id> / xt:<id>，分号分隔）从不含空白，
   // 放宽成 [^"]* 的话，第三方属性值里伪造的 ` source-ids=` 能跨到下一个属性。
   // 必须先展开占位符再剥离：反过来的话，第三方地址行 / #EXTVLCOPT 里可以写
   // `${re source-ids="x"place}`，剥掉中间一段正好拼出 `${replace}`，紧接着被换成带访问密码 /
   // 令牌的本机地址发给第三方——汇总时只拦得住字面量（见 replaceToken.js）。
-  result.content = `${result.content}`.replaceAll("${replace}", replaceHost).replace(/ source-ids="[^"\s]*"/g, "");
+  result.content = `${result.content}`.replaceAll("${replace}", replaceHost).replace(/ (?:source-ids|identity-url)="[^"\s]*"/g, "");
 
   // 原始缓存直出和配置档重生成都在这里处理；TXT 没有 M3U 选项，EPG 已提前返回。
   if (url !== '/txt') result.content = omitPlayerOnlyOpts(result.content)
@@ -328,8 +332,7 @@ function interfaceStr(url, headers, urlUserId, urlToken, profile, accessPrefix, 
  * resolveBurstGuard 的模块生效，按「模块｜客户端」计数，没声明的模块连账都不记。规则与依据见
  * utils/clientScanGuard.js；同一模块的本地媒体入口（handleLocalRequest）与这里共用一本账。
  *
- * 失败一律 code=200 + 中文正文（app.js:881-888 直接用 result.code 写响应头），
- * 不改 4xx/5xx——那是存量播放器依赖的行为。
+ * 旧模块失败时保留 200 + 中文正文。新模块可显式返回上游失败或未开播状态。
  *
  * client 可选：{ key, tag }，来自 app.js 的 clientOf(req)。不传就不计不拦（测试、旧调用方）。
  */
@@ -362,6 +365,10 @@ async function channel(url, urlUserId, urlToken, client, request = {}) {
   if (!module) {
     result.desc = "地址格式错误"
     return result
+  }
+
+  if (module.playbackRequiresEnabled && !getExtractorManager().isModuleEnabled(module)) {
+    return { ...result, code: 404, desc: '此来源已停用' }
   }
 
   // 播放器「刷新预览图 / 检测可用性 / 失败自动换台」式的批量探测：本地拒绝，一枪不打上游。
@@ -402,6 +409,7 @@ async function channel(url, urlUserId, urlToken, client, request = {}) {
 
   if (!resolved || resolved.url == "") {
     result.desc = resolved?.desc || "服务异常"
+    if ([404, 502, 503].includes(resolved?.status)) result.code = resolved.status
     // 模块自己按实例归并打过黄字的拒绝（央视频取票预算）同样不逐条刷红
     if (resolved?.silent === true) result.silent = true
     return result
