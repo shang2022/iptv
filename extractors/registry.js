@@ -47,7 +47,17 @@
  *                                 是省级地区（REGION_NAMES）就用它；分组名不是地区（上海景观）、
  *                                 按地市拆组（山东市县）的显式声明。不是地区的专题面板（国际、
  *                                 直播中国、iPanda）也用它，排在各省面板前面
+ *   county                boolean 可选；true 表示市县台模块（山东市县、各省「市县台·X」）。卡片照旧在本省
+ *                                 面板里，后台「批量开关」把它们单独收成「市县台」一节，一次全开全关。
+ *                                 只是归节，不是另一层开关。声明了就必须 defaultEnabled: false、region 是省级
+ *                                 地区、不带 category；反过来，默认关、归省面板的免账号模块也必须声明
+ *                                 （scripts/test-extractors.mjs 两头都查）
  *   preserveGroupSuffixes array   可选；命中这些后缀的特殊分组不被 outputGroupName 覆盖
+ *   splitFrom             object  可选；{ id, groups }。这张卡是从模块 id 里拆出来的，原来由它输出 groups
+ *                                 这几个分组（2026-11-08 景观从吉林、河北、南京、上海、北京拆出）。管理器据此
+ *                                 做一次性搬家：原模块缓存里的这几组挪过来；原模块被关掉的，新卡也关；
+ *                                 配置档按源停用了原模块的，也停用新卡（见 extractorManager #migrateSplitModules）。
+ *                                 分组名和播放引用都不改，用户对这些频道做过的隐藏、改名、排序照旧生效
  *   channelHlsMode        string  可选；'proxy' 或 'relay'，在输出时覆盖频道缓存中的
  *                                 HLS 路由标记，适合整个平台统一要求代理的模块
  *   channelHlsModeForConfig(config) 可选；按当前生效配置返回 'proxy'/'relay'，覆盖上面的固定模式
@@ -194,6 +204,7 @@ import asianLive from './asian-live/index.js'
 import redbull from './redbull/index.js'
 import anhui from './anhui/index.js'
 import beijing from './beijing/index.js'
+import beijingScenic from './beijing/scenic.js'
 import chongqing from './chongqing/index.js'
 import sichuan from './sichuan/index.js'
 import chengdu from './chengdu/index.js'
@@ -215,6 +226,7 @@ import gzstv from './gzstv/index.js'
 import gxtv from './gxtv/index.js'
 import qingdao from './qingdao/index.js'
 import hebtv from './hebtv/index.js'
+import hebtvScenic from './hebtv/scenic.js'
 import heilongjiang from './heilongjiang/index.js'
 import hbtv from './hbtv/index.js'
 import hkstv from './hkstv/index.js'
@@ -223,6 +235,7 @@ import hntv from './hntv/index.js'
 import huyaLive from './huya-live/index.js'
 import ipanda from './ipanda/index.js'
 import jlntv from './jlntv/index.js'
+import jlntvScenic from './jlntv/scenic.js'
 import jxntv from './jxntv/index.js'
 import jstv from './jstv/index.js'
 import jiaxing from './jiaxing/index.js'
@@ -231,6 +244,7 @@ import shaoxing from './shaoxing/index.js'
 import zhejiangLocal from './zhejiang-local/index.js'
 import iqilu from './iqilu/index.js'
 import kankanews from './kankanews/index.js'
+import kankanewsScenic from './kankanews/scenic.js'
 import livechina from './livechina/index.js'
 import lotustv from './lotustv/index.js'
 import meizhouHakka from './meizhou-hakka/index.js'
@@ -240,6 +254,7 @@ import ningbo from './ningbo/index.js'
 import ningde from './ningde/index.js'
 import ningxia from './ningxia/index.js'
 import njtv from './njtv/index.js'
+import njtvScenic from './njtv/scenic.js'
 import nmtv from './nmtv/index.js'
 import putian from './putian/index.js'
 import qtv from './qtv/index.js'
@@ -288,6 +303,7 @@ const MODULES = [
   websports,
   anhui,
   beijing,
+  beijingScenic,
   chongqing,
   sichuan,
   chengdu,
@@ -307,8 +323,10 @@ const MODULES = [
   putian,
   ningde,
   jlntv,
+  jlntvScenic,
   jxntv,
   hebtv,
+  hebtvScenic,
   hbtv,
   heilongjiang,
   hnntv,
@@ -330,6 +348,7 @@ const MODULES = [
   meizhouHakka,
   // 江门官方直播 CDN 持续 502，2026-10-27 暂时取消注册；解析模块保留供恢复。
   njtv,
+  njtvScenic,
   nmtv,
   shanxi,
   shaanxi,
@@ -342,6 +361,7 @@ const MODULES = [
   qingdao,
   qtv,
   kankanews,
+  kankanewsScenic,
   songjiang,
   livechina,
   ipanda,
@@ -377,6 +397,19 @@ export function validateModule(module) {
   }
   if (module.category != null && !MODULE_CATEGORIES.has(module.category)) {
     throw new Error(`抓取模块 ${module.id} 的 category 非法: ${JSON.stringify(module.category)}`)
+  }
+  if (module.county != null && typeof module.county !== 'boolean') {
+    throw new Error(`抓取模块 ${module.id} 的 county 必须是布尔值`)
+  }
+  if (module.county && (module.defaultEnabled !== false || module.category != null)) {
+    throw new Error(`抓取模块 ${module.id} 声明了 county（市县台），必须 defaultEnabled: false 且不带 category`)
+  }
+  if (module.splitFrom != null) {
+    const { id, groups } = module.splitFrom
+    if (!MODULE_ID_RE.test(id || '') || id === module.id
+      || !Array.isArray(groups) || !groups.length || groups.some(name => typeof name !== 'string' || !name.trim())) {
+      throw new Error(`抓取模块 ${module.id} 的 splitFrom 要写成 { id: '原模块 id', groups: ['原来由它输出的分组名'] }`)
+    }
   }
   if (module.catalogVersion != null
     && (!Number.isInteger(module.catalogVersion) || module.catalogVersion < 1)) {
@@ -446,6 +479,11 @@ for (const module of MODULES) {
   }
   registry.set(module.id, module)
 }
+for (const module of registry.values()) {
+  if (module.splitFrom && !registry.has(module.splitFrom.id)) {
+    throw new Error(`抓取模块 ${module.id} 的 splitFrom 指向不存在的模块 ${module.splitFrom.id}`)
+  }
+}
 
 // 后台按地区收面板用的地区名：省、自治区、直辖市和港澳台
 export const REGION_NAMES = new Set([
@@ -485,6 +523,13 @@ export function hasModule(id) {
 }
 
 /**
+ * 不是抓取模块、但也要认领播放引用的解析者：目前只有自定义源「经网络代理转发」
+ * （utils/customSourceProxy.js，由 app.js 挂上）。它不进注册表——后台没有它的卡片，
+ * 也不在 proxyModules 名单里。模块总是先认领，挂上来的只接模块都不认的引用。
+ */
+const extraResolvers = []
+
+/**
  * 找出该 ref 归哪个模块解析（播放请求到达时用）。
  *
  * 模块用 claimsRef(ref) 自己认领——判定属于平台知识，不该硬编码在注册表里。
@@ -498,7 +543,17 @@ export function resolverFor(ref) {
   for (const module of registry.values()) {
     if (typeof module.claimsRef === 'function' && module.claimsRef(ref)) return module
   }
+  for (const resolver of extraResolvers) {
+    if (resolver.claimsRef(ref)) return resolver
+  }
   return null
+}
+
+export function registerRefResolver(resolver) {
+  if (!resolver || typeof resolver.claimsRef !== 'function' || typeof resolver.resolve !== 'function') {
+    throw new Error('registerRefResolver 需要 claimsRef 与 resolve')
+  }
+  if (!extraResolvers.includes(resolver)) extraResolvers.push(resolver)
 }
 
 /** 找出哪个模块认领本机媒体路径；只做路由，不在注册表里放平台正则。 */
