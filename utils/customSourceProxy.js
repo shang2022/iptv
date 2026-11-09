@@ -1,5 +1,6 @@
 /**
- * 自定义源「经网络代理转发」：订阅卡片、直连卡片上的开关（字段 useProxy）。
+ * 自定义源播放入口：「经网络代理转发」（useProxy）与最高画质起播（topFirst）。
+ * topFirst 每次播放现取主清单，把最高档排在首位；未启用网络代理时只转发清单，媒体仍由播放器直连。
  *
  * 内置模块走不走代理是声明制（registry.js 的 outbound: 'proxy'，固定四处），用户在这里改不了；
  * 内置的「精选频道」订阅也没有这个开关。这里只管用户自己加的源：用户知道自己的哪份列表在大陆连不上，
@@ -27,8 +28,9 @@ import { fetch as undiciFetch } from 'undici'
 import { sanitizeOpts } from './channelOpts.js'
 import { printYellow } from './colorOut.js'
 import { fetchUpstreamResponse } from './hlsProxy.js'
+import { topVariantFirst } from './hlsTopFirst.js'
 import { isPrivateAddress } from './logoCache.js'
-import { outboundFetch, outboundProxyUrl } from './outboundProxy.js'
+import { describeProxyFailure, outboundFetch, outboundProxyUrl } from './outboundProxy.js'
 import { stripVolatileParams } from './urlIdentity.js'
 
 export const REF_PREFIX = 'cp-'
@@ -81,9 +83,21 @@ export function proxiableUrl(raw) {
  * 开了开关的源的出站请求：局域网地址直连（代理够不着家里的机器），其余经网络代理
  * （后台填的优先，没填沿用 HTTPS_PROXY / 系统代理，见 outboundProxy.outboundFetch）。
  */
-export function customSourceFetch(url, options = {}) {
-  return isLanUrl(url) ? undiciFetch(url, options) : outboundFetch(url, options)
+export async function customSourceFetch(url, options = {}) {
+  if (isLanUrl(url)) return undiciFetch(url, options)
+  try {
+    return await outboundFetch(url, options)
+  } catch (error) {
+    // 拉订阅那边只认 error.code / cause.code，会把 UND_ERR_SOCKET 原样亮给用户；先翻好挂在错误上
+    if (error && typeof error === 'object' && !error.proxyFailure) {
+      try { error.proxyFailure = describeProxyFailure(error) } catch { /* 只读的错误对象就算了 */ }
+    }
+    throw error
+  }
 }
+
+// 代理已接通、往对方那一步失败时，报错后面跟的一句：用户最常见的是把自己网络本来就能播的源（运营商 IPTV 等）也勾上了
+const TARGET_FAILURE_HINT = '。从代理出去连不上这个地址：用自己网络能直接播的源不用勾「经网络代理转发」；代理软件用规则模式的，看看这个地址走了哪条线路'
 
 const OPT_HEADERS = { 'http-user-agent': 'User-Agent', 'http-referrer': 'Referer', 'http-origin': 'Origin' }
 
@@ -156,13 +170,14 @@ async function readHlsText(response) {
  * resolverFor 在模块都不认领时才问它。
  *
  * @param {object} deps
- * @param {() => Array<{ref, name, url, opts?, sourceId?, sourceName?}>} deps.getChannels 开了开关的源里改写过的频道
+ * @param {() => Array<{ref, name, url, useProxy?, topFirst?, opts?, sourceId?, sourceName?}>} deps.getChannels 改写了播放入口的频道
  * @param {() => unknown} deps.getVersion 源配置的版本号；变了才重建索引（订阅刷新会换掉原地址里的签名）
  */
 export function createCustomProxyResolver({
   getChannels,
   getVersion = () => undefined,
   fetchImpl = customSourceFetch,
+  directFetchImpl = undiciFetch,
   proxyEnabled = () => Boolean(outboundProxyUrl()),
   log = printYellow,
   now = Date.now,
@@ -194,11 +209,13 @@ export function createCustomProxyResolver({
   async function resolve(ref, ctx = {}) {
     const entry = claimsRef(ref) ? lookup(String(ref)) : null
     if (!entry) {
-      return { url: '', status: 404, desc: '这个自定义源频道已更新，或已关闭「经网络代理转发」，请在播放器里刷新订阅' }
+      return { url: '', status: 404, desc: '这个自定义源频道已更新，或已关闭播放处理，请在播放器里刷新订阅' }
     }
     const label = `${entry.sourceName || '自定义源'}「${entry.name}」`
     const url = withQuery(entry.url, ctx.query)
-    if (!proxyEnabled()) {
+    const proxied = entry.useProxy === true && proxyEnabled()
+    const topFirst = entry.topFirst === true
+    if (!proxied && !topFirst) {
       note(`direct|${entry.sourceId || ''}`, `${entry.sourceName || '自定义源'}：没有生效的网络代理，开了「经网络代理转发」的频道暂由播放器直连`)
       // directRedirect：app.js 据此直接 302，不因入口在 /proxy/ 下就改由服务器取清单、转发分片
       return { url, directRedirect: 'no-proxy', desc: `${label} 没有生效的网络代理，改由播放器直连` }
@@ -209,7 +226,7 @@ export function createCustomProxyResolver({
         signal: AbortSignal.timeout(MANIFEST_TIMEOUT_MS),
         upstreamHeaders,
         headers: { Accept: 'application/vnd.apple.mpegurl, */*' },
-        fetchImpl,
+        fetchImpl: proxied ? fetchImpl : directFetchImpl,
       })
       if (!response.ok) {
         await response.body?.cancel?.().catch(() => {})
@@ -218,29 +235,47 @@ export function createCustomProxyResolver({
       const text = await readHlsText(response)
       if (text == null) {
         // 转发链路只管 HLS；FLV、TS 裸流这类交还给播放器，和没开开关时一样
-        note(`nonhls|${entry.ref}`, `${label} 不是 HLS 直播，改由播放器直连（经网络代理转发只支持 HLS）`)
+        note(`nonhls|${entry.ref}`, `${label} 不是 HLS 直播，改由播放器直连（自定义源播放处理只支持 HLS）`)
         return { url, directRedirect: 'not-hls', desc: `${label} 不是 HLS 直播，改由播放器直连` }
       }
       const manifestUrl = response.url || url
-      return { url: manifestUrl, proxyHls: true, manifestText: text, manifestUrl, upstreamHeaders, desc: `${label} 经网络代理转发` }
+      return {
+        url: manifestUrl,
+        ...(proxied ? { proxyHls: true } : { relayHls: true }),
+        manifestText: topFirst ? topVariantFirst(text) : text,
+        manifestUrl,
+        upstreamHeaders,
+        desc: `${label}${topFirst ? ' 最高画质优先' : ''}${proxied ? ' 经网络代理转发' : ''}`,
+      }
     } catch (error) {
-      const reason = ['AbortError', 'TimeoutError'].includes(error?.name)
-        ? '超时没有响应'
-        : (error?.cause?.code || error?.message || String(error))
+      // 和「测试」按钮同一套话：分得清是连代理就失败，还是代理接通后对方那一步失败
+      const { stage, message } = proxied
+        ? error?.proxyFailure || describeProxyFailure(error)
+        : { stage: '', message: error?.message || String(error) }
+      const reason = `${message}${stage === 'target' ? TARGET_FAILURE_HINT : ''}`
       // 开了代理就不悄悄绕过它直连：用户勾这个开关，多半正是因为直连不通
-      note(`fail|${entry.ref}`, `${label} 经网络代理取清单失败（${hostOf(url)}）：${reason}。代理软件用规则模式的，看看这个域名是否走了代理`)
-      return { url: '', status: 502, silent: true, desc: `${label} 经网络代理取清单失败：${reason}` }
+      const action = proxied ? '经网络代理取清单' : '取最高画质清单'
+      note(`fail|${entry.ref}`, `${label} ${action}失败（${hostOf(url)}）：${reason}`)
+      return { url: '', status: 502, silent: true, desc: `${label} ${action}失败：${reason}` }
     }
   }
 
   return {
     id: 'custom-source-proxy',
-    name: '自定义源（经网络代理转发）',
+    name: '自定义源播放处理',
     // 回看参数由 resolve 自己接回原地址（原地址不一定带 ?，外壳的 & 拼接会拼坏）
     capabilities: { resolve: true, catchup: false },
+    relayProxyCompatible: true,
     claimsRef,
     resolve,
-    // 全代理链路的子清单、分片回源：同样经网络代理、带上频道的请求头（请求头已随登记项传进来）
-    fetchProxyMedia: (_ref, _config, url, options) => fetchUpstreamResponse(url, { ...options, fetchImpl }),
+    // /proxy 或浏览器全转发模式也遵守源的出站选择；最高画质标记本身不代表启用网络代理。
+    fetchProxyMedia: (ref, _config, url, options) => {
+      const entry = lookup(ref)
+      if (!entry) throw new Error('自定义源频道已更新，请刷新订阅')
+      return fetchUpstreamResponse(url, {
+        ...options,
+        fetchImpl: entry.useProxy === true && proxyEnabled() ? fetchImpl : directFetchImpl,
+      })
+    },
   }
 }

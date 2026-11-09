@@ -109,7 +109,7 @@
 
 ## 网络代理
 
-「设置 → 网络代理」适用于声明了 `outbound: 'proxy'` 的模块（现在是 YouTube、澳门、海外频道、Red Bull TV；名单、「测试」的目标、要放行的域名和卡片上的「走代理」角标都从 `extractors/registry.js` 的声明派生）和 Telegram。代理软件用规则模式时，说明里可展开「要放行这些域名」照着加（澳门 `tdm.com.mo`，YouTube `youtube.com`、`googlevideo.com`，海外频道按 IPTV-overseas.m3u 里的流地址收成后缀，加取表用的 `githubusercontent.com`，红牛 `redbull.tv`、`redbull.com`、`akamaized.net`、`liiift.io`，Telegram `telegram.org`）；「测试」里断在代理之后的失败项也会列出该项要放行的域名。支持 HTTP、HTTPS、SOCKS5；留空时沿用环境变量或 macOS 系统代理，都没有才使用直连。其他模块不使用这里填写的代理，但原有环境变量／系统代理的作用范围保持不变。
+「设置 → 网络代理」适用于声明了 `outbound: 'proxy'` 的模块（现在是 YouTube、澳门、海外频道、Red Bull TV、Xumo Play；名单、「测试」的目标、要放行的域名和卡片上的「走代理」角标都从 `extractors/registry.js` 的声明派生）和 Telegram。代理软件用规则模式时，说明里可展开「要放行这些域名」照着加（澳门 `tdm.com.mo`，YouTube `youtube.com`、`googlevideo.com`，海外频道按 IPTV-overseas.m3u 里的流地址收成后缀，加取表用的 `githubusercontent.com`，红牛 `redbull.tv`、`redbull.com`、`akamaized.net`、`liiift.io`，Telegram `telegram.org`）；「测试」里断在代理之后的失败项也会列出该项要放行的域名。支持 HTTP、HTTPS、SOCKS5；留空时沿用环境变量或 macOS 系统代理，都没有才使用直连。其他模块不使用这里填写的代理，但原有环境变量／系统代理的作用范围保持不变。
 
 澳门与海外频道检测到生效代理时，取址、澳门节目单、主清单、子清单、字幕、密钥和视频分片均经服务器转发，播放器无需另设代理，会使用服务器带宽及代理流量。没有生效代理时保留原先的播放器直连方式。更换代理后澳门会重新查询对应出口的 CDN 路由。代理只改变网络路径，频道仍受官方地区与节目授权限制。
 
@@ -134,7 +134,7 @@
 - 网页播放（后台和独立播放页）：Thai PBS 的 CDN 只放行官网自己的 Origin，浏览器跨域请求必带 Origin，网页里播不了，外部播放器正常；NASA+ 的分片拒绝别家来源头、放行不带来源的请求，播放页加了 `no-referrer` 后网页可播。
 - 没收的：港台电视 31 只放行香港（香港三类网络 200，大陆、台湾、日本、美国 403）；面包台大陆、海外都 404，源已挂，已从精选列表删除。
 - 台标按台名用内置台标库（9 月手工收的），beIN Sports Xtra 用 Xumo 频道卡，Tennis Channel International 暂无。
-- 起播清晰度：主清单把最低档排第一的，AVPlayer 等会从最低档起播、先糊一阵（实验台网页播放器锁最高档，所以那边清楚）。最高档地址固定的 14 台（加精选列表的 Red Bull TV、CNA、Pet Club TV）10-06 改成直接写最高档，和 NHL FAST、WildEarth 一样，代价是没了自动降档；最高档地址带会话参数的 8 台（World Poker Tour、FUEL TV、MTRSPT1、Terra Mater WILD、Wipeout Xtra、MovieSphere、FIFA+、Qello Concerts）当时仍是主清单，同日改为服务端转发主清单时把最高档挪到第一位（见下一条；World Poker Tour 在精选列表里，挪进了亚洲与国际直播模块）。
+- 起播清晰度：主清单把最低档排第一的，AVPlayer 等会从最低档起播、先糊一阵（实验台网页播放器锁最高档，所以那边清楚）。最高档地址固定的 14 台（加精选列表的 Red Bull TV、CNA、Pet Club TV）10-06 改成直接写最高档，和 NHL FAST、WildEarth 一样，代价是没了自动降档；最高档地址带会话参数的 8 台（World Poker Tour、FUEL TV、MTRSPT1、Terra Mater WILD、Wipeout Xtra、MovieSphere、FIFA+、Qello Concerts）当时仍是主清单，同日改为服务端转发主清单时把最高档挪到第一位（见下一条；World Poker Tour 当时从精选列表接入亚洲与国际直播模块；2026-11-08 已移除模块入口，仅保留 from-the-web 订阅条目）。
 - 最高档前置（10-06）：频道表里标了 `x-top-first="1"` 的台写官方主清单，新镜像播放时由服务端取一次主清单、把最高档挪到最前（`utils/hlsTopFirst.js`），子清单和分片仍由播放器直连，网速不够照常降档、独立音轨和字幕都在。现在标了 14 台：Thai PBS、DW English、TRT World、NASA+、Gusto TV、Arirang（Arirang、NASA+ 由写死最高档改回主清单），FUEL TV、MTRSPT1、Terra Mater WILD、Wipeout Xtra、MovieSphere、FIFA+、Qello Concerts（子清单带会话参数，会话由服务端取主清单时建立；Globalping 大陆、德国、日本探针取同一份子清单都通，播放设备换了 IP 照样能用），以及 France 24 Español——官方只有 1080p、360p 两条单档清单，登记在模块的 LADDERS 里，播放时直接拼主清单、不发请求。服务端只在起播时多一次清单请求；取不到（部署机器连不上官方入口）就 302 回官方原地址，和直连一样。所以这几台是「服务端取主清单 + 播放器直连视频」，服务端连不上时也不比以前差。不是多档主清单的地址别标——播放器每次刷新清单都会打到服务端。
 
 ## 澳广视（动态的海外源）
@@ -165,3 +165,7 @@ node scripts/probe-modules.mjs --samples all --md 结果.md --json 明细.json
 - 在目标网络上跑。沙箱或代理环境下加 `NODE_USE_ENV_PROXY=1`。
 - `--only id1,id2` 只测部分模块，`--skip` 跳过。`--keep-urls` 把签好名的地址留进 JSON，用来交给 Globalping 换出口复核（地址带短效令牌，只留在本机）。
 - 央视频在大陆连续取票会被限速，大陆复测时用 `--skip yangshipin`，别拿作者家里的出口扫。
+
+### Xumo Play（2026-11-08）
+
+「海外」新增 Xumo Play，默认关闭，全部取址、HLS、视频、音轨和字幕走统一网络代理。原生移植，无独立实验台服务依赖。主项目临时实例导出 422 路；每天更新与每 6 小时检查的持久调度、更新失败保留、关闭中停止维护均已测试。macOS 当前网络下，未填写后台代理时沿用环境/系统代理，UFC、CBS News、Local Now 分别实播 1080p、1080p、720p；显式填写后台 HTTP 代理后 UFC 解码 15.015 秒、450 帧，WebVTT 字幕经服务器读取正常。坏代理返回 502，不退回播放器直连；恢复代理返回 200。关闭模块后主清单和旧子清单 404，M3U 移除频道。此结果不代表大陆无代理直连可用。详见 `extractors/xumo/verification.json`。

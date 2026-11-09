@@ -1036,7 +1036,7 @@ try {
         ...modules.filter(module => module.id.startsWith('guangdianyun-')).map(module => module.id),
       ].sort(),
     )
-    assert.deepEqual(modules.filter(module => module.category === 'overseas').map(module => module.id).sort(), ['overseas', 'redbull', 'tdm', 'youtube-live'])
+    assert.deepEqual(modules.filter(module => module.category === 'overseas').map(module => module.id).sort(), ['overseas', 'redbull', 'tdm', 'xumo', 'youtube-live'])
   })
 
   check('模块地区透传给后台：省台、地市台、景观归到同一地区，全国性的不归', () => {
@@ -1224,7 +1224,7 @@ try {
     // 一个目录可能出多个模块（广电云），守门按目录：引用了 outboundProxy.js 的目录必须恰好是声明了走代理的模块的目录
     const dirs = readdirSync(root).filter(name => existsSync(new URL(`${name}/index.js`, root)))
     const declared = proxyModules().map(module => module.id)
-    assert.deepEqual(declared, ['tdm', 'youtube-live', 'redbull', 'overseas'],
+    assert.deepEqual(declared, ['tdm', 'youtube-live', 'redbull', 'xumo', 'overseas'],
       '走代理的名单变了：按 ADD-CHANNELS.md「要走代理的模块」做完再改这里')
     for (const dir of declared) assert.ok(dirs.includes(dir), `${dir} 走代理的模块目录名要和 id 一致`)
     const using = dirs.filter(dir => filesOf(dir).some(({ src }) => /outboundProxy\.js/.test(src)))
@@ -1303,7 +1303,7 @@ try {
     assert.ok(gdy.length >= 20, '市县台各省模块都默认关闭')
     assert.equal(listModules().filter(module => module.id.startsWith('guangdianyun-')).length, gdy.length)
     assert.deepEqual(optIn.filter(id => !id.startsWith('guangdianyun-')).sort(),
-      ['bestv-fj', 'overseas', 'redbull', 'shandong-counties', 'tdm', 'websports', 'youtube-live'],
+      ['bestv-fj', 'overseas', 'redbull', 'shandong-counties', 'tdm', 'websports', 'xumo', 'youtube-live'],
       '百视通因出口可用性差异默认关闭；WebSports 来自第三方赛事网站；其余默认关闭模块保持不变')
     const manager = newManager(undefined, { modules: {}, masterSwitchRetired: true })
     for (const id of optIn) assert.equal(manager.isModuleEnabled(getModule(id)), false, id)
@@ -1697,6 +1697,20 @@ try {
     seed(manager, [], { status: 'failed', consecutiveFailures: 1, lastError: 'HTTP 403', channelCount: 0 })
     const moduleState = manager.getState().modules.find(module => module.id === 'bilibili-live')
     assert.equal(moduleState.health.usingCachedChannels, false)
+  })
+
+  check('只放内存的模块重启后列表为空：面板频道数按实际缓存算，不沿用落盘的旧数', () => {
+    const manager = newManager()
+    // 咪咕 groups 不落盘、health 落盘：重启后就是「groups 空 + channelCount 还是上一轮」
+    manager.cache.modules.migu = {
+      groups: [],
+      health: { ...emptyHealth(), status: 'failed', consecutiveFailures: 238, lastError: '咪咕分类接口无响应', channelCount: 83 },
+      memoryOnly: true,
+    }
+    const health = manager.getState().modules.find(module => module.id === 'migu').health
+    assert.equal(health.channelCount, 0, '列表是空的，卡片不能写「83 频道」')
+    assert.equal(health.usingCachedChannels, false)
+    assert.equal(manager.alertSnapshot().modules.find(module => module.id === 'migu').health.channelCount, 0)
   })
 
   // 「抓取模块总开关」已退休：旧关闭态只负责升级迁移，运行时不能再覆盖卡片选择。

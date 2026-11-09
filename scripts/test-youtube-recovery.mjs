@@ -64,8 +64,9 @@ async function playback() {
     'node:child_process': subprocess(async (_binary, args) => {
       state.parses++
       state.args.push(args.join(' '))
+      if (state.stderr) throw { stderr: state.stderr }
       assert.equal(args.at(-1), 'https://www.youtube.com/watch?v=' + video, 'renew the original programme')
-      return { stdout: JSON.stringify({ id: video, channel_id: channelId, live_status: 'is_live',
+      return { stdout: JSON.stringify({ id: video, channel_id: channelId, live_status: state.liveStatus || 'is_live',
         formats: [{ protocol: 'm3u8_native', vcodec: 'avc1', manifest_url: master(state.parses === 1 ? 'A' : 'B') }] }) }
     }),
     'node:crypto': crypto, 'node:util': util,
@@ -76,6 +77,8 @@ async function playback() {
       outboundProxyKey: () => 'direct', outboundProxyUrl: () => '', ytDlpProxyArg: () => '',
       outboundFetch: async (raw, options) => {
         state.requests.push({ raw, options })
+        if (state.networkError) throw Object.assign(new Error('fetch failed'), { cause: { code:'ECONNREFUSED' } })
+        if (raw.startsWith('https://www.youtube.com/')) return new Response('upstream error', { status:state.watchStatus || 403 })
         const sig = field(raw, 'sig')
         const isMaster = raw.includes('/hls_variant/')
         if (state.gate && sig === 'A' && isMaster) {
@@ -170,6 +173,44 @@ await check('the muxed-audio setting reaches yt-dlp on open and on renewal; defa
   assert.equal(res.status, 200)
   assert.ok(h.state.parses > parses)
   assert.match(h.state.args.at(-1), /player_client=mweb/, 'renewal keeps the muxed client')
+})
+
+await check('manual playback checks surface the cause and never return signed media URLs', async () => {
+  for (const [changes, code, hint] of [
+    [{ stderr:'ERROR: Connection refused' }, 'NETWORK_UNREACHABLE', /网络不通/],
+    [{ stderr:"ERROR: Sign in to confirm you're not a bot" }, 'BOT_CHECK', /出口被拦/],
+    [{ stderr:'ERROR: HTTP Error 429: Too Many Requests' }, 'RATE_LIMITED', /请求受限/],
+    [{ stderr:'ERROR: Sign in to confirm your age' }, 'LOGIN_REQUIRED', /需要登录/],
+    [{ stderr:'ERROR: members-only content' }, 'MEMBERS_ONLY', /会员权限/],
+    [{ liveStatus:'is_upcoming' }, 'NOT_LIVE', /未开播/],
+    [{ liveStatus:'was_live' }, 'LIVE_ENDED', /已结束/],
+    [{ networkError:true }, 'NETWORK_UNREACHABLE', /Google Video 视频服务器/],
+    [{ revoked:true, failAt:'all' }, 'UPSTREAM_REJECTED', /HTTP 403.*不能仅凭此错误判断需要登录/],
+  ]) {
+    const h = await playback()
+    Object.assign(h.state, changes)
+    const result = await h.api.checkPlayback(h.api.refOf(h.item), h.config)
+    assert.equal(result.success, false)
+    assert.equal(result.reasonCode, code)
+    assert.match(result.message, hint)
+    assert.doesNotMatch(JSON.stringify(result), /https:|\/sig\/|manifestUrl/)
+    const resolved = await h.api.resolve(h.api.refOf(h.item), { config:h.config })
+    assert.equal(resolved.status, ['NOT_LIVE','LIVE_ENDED'].includes(code) ? 503 : 502)
+    assert.match(resolved.desc, hint, '网页播放入口收到相同中文原因')
+  }
+  const h = await playback()
+  const success = await h.api.checkPlayback(h.api.refOf(h.item), h.config)
+  assert.equal(success.success, true)
+  assert.match(success.message, /入口可访问.*不包含音视频分片/)
+  assert.doesNotMatch(JSON.stringify(success), /https:|\/sig\/|manifestUrl/)
+})
+
+await check('watch-page network and HTTP failures use the same classifications', async () => {
+  for (const [changes, code] of [[{networkError:true},'NETWORK_UNREACHABLE'], [{watchStatus:429},'RATE_LIMITED'], [{watchStatus:403},'UPSTREAM_REJECTED']]) {
+    const h = await playback()
+    Object.assign(h.state, changes)
+    await assert.rejects(h.api.inspectEvent('https://www.youtube.com/watch?v=' + video), error => error.reasonCode === code)
+  }
 })
 
 const harnesses = []
@@ -310,5 +351,63 @@ await check('admin offers repair after reopening and keeps retry available after
   await button.onclick()
   assert.equal(button.hidden, true)
   assert.match(elements.youtubeRuntimeText.textContent, /已修复/)
+})
+await check('admin lists every event with its own 订阅此场 that pins that event, not the channel', async () => {
+  const admin = readFileSync(new URL('web/admin.html', root), 'utf8')
+  const source = admin.match(/^ {8}function initYouTubeSubscriptions\([^]*?^ {8}\}/m)[0]
+  const node = () => ({ children: [], textContent: '', isConnected: true, hidden: true,
+    append(...items) { for (const item of items) typeof item === 'string' ? this.textContent += item : this.children.push(item) },
+    replaceChildren() { this.children = []; this.textContent = '' } })
+  const elements = Object.fromEntries(['youtubeInput','youtubeEvents','youtubeInspect','youtubeAdd',
+    'youtubeRuntimeText','youtubeRuntimeCheck','youtubeRuntimeUpdate'].map(id => [id, node()]))
+  elements.youtubeInput.value = 'https://www.youtube.com/@SkyNews'
+  elements.youtubeInput.closest = () => ({ querySelectorAll: () => [] })
+  const posts = [], applied = []
+  const checkButton = { ...node(), dataset:{youtubeCheck:channelId} }
+  const feedback = node()
+  checkButton.parentElement = { querySelector: () => feedback }
+  const checking = deferred()
+  let checkResult = { success:false, reasonCode:'BOT_CHECK', message:'出口被拦：请检查网络出口' }
+  elements.youtubeInput.closest = () => ({ querySelectorAll: () => [checkButton] })
+  const live = (videoId, name, status = 'is_live') => ({ channelId: 'UCoMdktPbSTixAyNGwb-UYkQ', videoId, name, status, url: 'https://www.youtube.com/watch?v=' + videoId })
+  const extractorPost = async body => {
+    posts.push(body)
+    if (body.action === 'youtubeRuntime') return { success: true, version: '2026.10.26', managed: true }
+    if (body.action === 'youtubeCheck') { await checking.promise; return checkResult }
+    if (body.action === 'youtubeInspect') return { success: true, item: { channelId: 'UCoMdktPbSTixAyNGwb-UYkQ', name: 'Sky News' },
+      events: [live('aaaaaaaaaaa', 'Sky News Live'), live('bbbbbbbbbbb', 'Sky News Ukraine'), live('ccccccccccc', 'Press conference', 'is_upcoming')] }
+    return { success: true }
+  }
+  const context = vm.createContext({ document: { getElementById: id => elements[id], querySelectorAll: selector => selector === '[data-youtube-check]' ? [checkButton] : [], createElement: node },
+    extractorPost, applyExtractorResult: (result, message) => applied.push(message) })
+  vm.runInContext(source + '\ninitYouTubeSubscriptions()', context)
+  await new Promise(setImmediate)
+  await elements.youtubeInspect.onclick()
+  const [heading, ...rows] = elements.youtubeEvents.children
+  assert.equal(heading.children[0].textContent, '关注此频道')
+  assert.deepEqual(rows.map(row => row.textContent), ['直播中 · Sky News Live ', '直播中 · Sky News Ukraine ', '已预约 · Press conference '])
+  assert.ok(rows.every(row => row.children[0].textContent === '订阅此场'))
+  await rows[1].children[0].onclick()
+  assert.deepEqual({ ...posts.at(-1) }, { action: 'youtubeAdd', url: 'https://www.youtube.com/watch?v=bbbbbbbbbbb', pin: true })
+  assert.match(applied.at(-1), /已订阅这一场/)
+  await heading.children[0].onclick()
+  assert.deepEqual({ ...posts.at(-1) }, { action: 'youtubeAdd', url: 'https://www.youtube.com/channel/UCoMdktPbSTixAyNGwb-UYkQ' })
+  assert.match(applied.at(-1), /已关注频道/)
+  await elements.youtubeAdd.onclick()
+  assert.deepEqual({ ...posts.at(-1) }, { action: 'youtubeAdd', url: 'https://www.youtube.com/@SkyNews' }, '主按钮照旧关注频道')
+  const before = applied.length
+  const pending = checkButton.onclick()
+  assert.equal(checkButton.disabled, true)
+  assert.match(feedback.textContent, /从部署机器检查/)
+  await checkButton.onclick()
+  assert.equal(posts.filter(p => p.action === 'youtubeCheck').length, 1, '重复点击不发起并发检查')
+  checking.resolve(); await pending
+  assert.deepEqual({ ...posts.at(-1) }, { action:'youtubeCheck', ref:channelId })
+  assert.equal(feedback.textContent, checkResult.message, '失败原因就地显示在对应频道下方')
+  assert.equal(checkButton.disabled, false)
+  checkResult = { success:true, message:'当前直播的播放入口可访问' }
+  await checkButton.onclick()
+  assert.equal(feedback.textContent, checkResult.message)
+  assert.equal(applied.length, before, '只读检查不刷新或覆盖订阅配置')
 })
 console.log(`YouTube recovery: ${passed} checks passed`)

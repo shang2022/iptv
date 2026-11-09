@@ -4934,7 +4934,7 @@
                                 <strong>当前版本</strong>
                             </div>
                             <div class="about-version-body">
-                                <span id="versionText">v4.67.0</span>
+                                <span id="versionText">v4.69.0</span>
                                 <button class="btn btn-sm" onclick="checkUpdate()" id="checkUpdateBtn">检查更新</button>
                             </div>
                             <div id="updateInfo" class="about-update-info" style="display: none;"></div>
@@ -5299,18 +5299,22 @@
             if (!input) return;
             const events = document.getElementById('youtubeEvents');
             let busy = false;
-            async function submit(action, fields) {
+            async function submit(action, fields, feedback = events) {
                 if (busy) return;
                 busy = true;
                 const controls = input.closest('.bookmarklet-section').querySelectorAll('button,input');
                 controls.forEach(el => { el.disabled = true; });
-                events.textContent = action === 'youtubeInspect' ? '正在查询 YouTube 场次…' : '正在更新订阅…';
+                feedback.textContent = action === 'youtubeInspect' ? '正在查询 YouTube 场次…'
+                    : action === 'youtubeCheck' ? '正在从部署机器检查直播入口，请稍候…' : '正在更新订阅…';
                 try {
                     const result = await extractorPost({ action, ...fields });
                     if (!input.isConnected) return;
-                    if (!result.success) { events.textContent = result.message || 'YouTube 请求失败'; return; }
+                    if (!result.success) { feedback.textContent = result.message || 'YouTube 请求失败'; return; }
+                    if (action === 'youtubeCheck') { feedback.textContent = result.message; return; }
                     if (action !== 'youtubeInspect') {
-                        applyExtractorResult(result, action === 'youtubeRemove' ? '已移除订阅' : '已关注频道，启用模块后可在 M3U 的 YouTube 直播分组观看');
+                        applyExtractorResult(result, action === 'youtubeRemove' ? '已移除订阅'
+                            : fields.pin ? '已订阅这一场，启用模块后可在 M3U 的 YouTube 直播分组观看'
+                            : '已关注频道，启用模块后可在 M3U 的 YouTube 直播分组观看');
                         return;
                     }
                     events.replaceChildren();
@@ -5321,16 +5325,23 @@
                     follow.onclick = () => submit('youtubeAdd', { url: 'https://www.youtube.com/channel/' + result.item.channelId });
                     heading.append(' ', follow);
                     events.append(heading);
+                    // 新闻台常同时开好几路，关注频道只播第一路；想看哪一路就单独订阅那一场
                     for (const event of result.events) {
                         const p = document.createElement('p');
-                        p.textContent = (event.status === 'is_live' ? '直播中 · ' : '已预约 · ') + event.name;
+                        const pin = document.createElement('button');
+                        pin.className = 'btn btn-sm'; pin.textContent = '订阅此场';
+                        pin.onclick = () => submit('youtubeAdd', { url: event.url, pin: true });
+                        p.append((event.status === 'is_live' ? '直播中 · ' : '已预约 · ') + event.name + ' ', pin);
                         events.append(p);
                     }
-                } catch { events.textContent = '无法连接源管理接口'; }
+                } catch { feedback.textContent = '无法连接源管理接口'; }
                 finally { busy = false; controls.forEach(el => { el.disabled = false; }); }
             }
             document.getElementById('youtubeInspect').onclick = () => submit('youtubeInspect', { url: input.value });
             document.getElementById('youtubeAdd').onclick = () => submit('youtubeAdd', { url: input.value });
+            for (const button of document.querySelectorAll('[data-youtube-check]')) {
+                button.onclick = () => submit('youtubeCheck', { ref: button.dataset.youtubeCheck }, button.parentElement.querySelector('[data-youtube-result]'));
+            }
             for (const button of document.querySelectorAll('[data-youtube-remove]')) {
                 button.onclick = () => submit('youtubeRemove', { ref: button.dataset.youtubeRemove });
             }
@@ -5504,11 +5515,13 @@
                     <div class="bookmarklet-actions"><input type="text" id="youtubeInput" maxlength="2048" placeholder="用户名、频道 ID、频道或视频分享链接">
                     <button class="btn btn-sm" id="youtubeInspect">查看场次</button>
                     <button class="btn btn-sm btn-primary" id="youtubeAdd">关注频道</button></div>
-                    <p>频道、直播、视频和 Shorts 链接都用于关注所属频道。未开播时保留，播放时选择频道当前的首场公开直播。</p>
+                    <p>频道、直播、视频和 Shorts 链接都用于关注所属频道。未开播时保留，播放时选择频道当前的首场公开直播。同时开好几路的（如新闻台），点「查看场次」，在要看的那一场后面点「订阅此场」。</p>
                     <div id="youtubeEvents" aria-live="polite"></div>
                     <div id="youtubeEnded" class="youtube-ended" hidden></div>
                     <div id="youtubeSaved">${rows.length ? '' : '<p>还没有订阅。添加第一个频道后，它会出现在 M3U 的「YouTube 直播」分组。</p>'}${rows.map(row => `<p>${escapeHtml(row.name)} · ${row.videoId ? '固定场次' : '关注频道'}${row.videoId ? `<span class="youtube-status" data-youtube-status="${escapeHtml(row.videoId)}"></span>` : ''}
-                      <button class="btn btn-sm" data-youtube-remove="${escapeHtml(row.videoId || row.channelId)}">移除</button></p>`).join('')}</div>
+                      <button class="btn btn-sm" data-youtube-check="${escapeHtml(row.videoId || row.channelId)}">检查播放</button>
+                      <button class="btn btn-sm" data-youtube-remove="${escapeHtml(row.videoId || row.channelId)}">移除</button>
+                      <span data-youtube-result aria-live="polite" style="display:block; font-size:12px; margin-top:4px;"></span></p>`).join('')}</div>
                     <div class="youtube-runtime"><span id="youtubeRuntimeText">解析组件 yt-dlp：读取中…</span>
                       <button class="btn btn-sm" id="youtubeRuntimeCheck">检查更新</button>
                       <button class="btn btn-sm btn-primary" id="youtubeRuntimeUpdate" hidden>更新</button></div>
@@ -8960,7 +8973,7 @@
                             <div class="form-hint">填写包含多个频道的 m3u/m3u8 或 txt（频道名,地址）播放列表地址，系统会自动识别格式并解析其中的所有频道</div>
                             ${isFromTheWebUrl(source.subscriptionUrl) ? `
                             <div style="margin-top:8px;padding:8px 10px;background:#fffbe6;border:1px solid #ffe58f;border-radius:4px;font-size:12px;color:#8c6d1f;line-height:1.6;">
-                                这是仓库 from-the-web 里的<strong>网络第三方转发源</strong>，不是电视台官方地址：国内直连大多播不了，需要海外网络、路由器全局代理，或填好「设置 → 网络代理」后勾下方「经网络代理转发」；本项目不维护，失效不作为 bug 处理。不想要了删掉这条订阅即可。<a href="${FROM_THE_WEB_README}" target="_blank" rel="noopener">收录范围 ↗</a>
+                                这是仓库 from-the-web 里的<strong>网络源订阅</strong>，包含第三方转发源、平台分发源及来源待确认的 CDN。第三方转发站国内直连大多播不了，其他线路按各自情况判断；需要代理时，可使用海外网络、路由器全局代理，或填好「设置 → 网络代理」后勾下方「经网络代理转发」；本项目不维护，失效不作为 bug 处理。不想要了删掉这条订阅即可。<a href="${FROM_THE_WEB_README}" target="_blank" rel="noopener">收录范围 ↗</a>
                             </div>` : (!isSaved && findFromTheWebSource(index) === -1 ? `
                             <div class="form-hint">想加回以前精选列表里的港澳台、新马、影视等网络第三方频道？<a href="javascript:void(0)" onclick="fillFromTheWeb(${index})">一键填入「来源于网络」列表</a></div>` : '')}
                             ` : `
